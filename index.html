@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kirjausseula</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="description" content="Kirjausseula: päiväkirjan kirjausten testaus (journal entry testing) ja tositetäsmäytys tilintarkastukseen. Toimii selaimessa, aineisto ei lähde koneelta.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2212%22 fill=%22%230e3326%22/%3E%3Cpath d=%22M8 22h48c0 14-10.7 24-24 24S8 36 8 22z%22 fill=%22%231d5e40%22 stroke=%22%23e9f1ea%22 stroke-width=%223%22/%3E%3Cpath d=%22M26 52l5 5 10-12%22 stroke=%22%23ff6b52%22 stroke-width=%225%22 fill=%22none%22 stroke-linecap=%22round%22/%3E%3C/svg%3E">
+<style>
+:root{
+  /* Ilme: tilintarkastajan pääkirjapaperi. Vihreä viivoitus, punakynän tarkastusmerkit, korostuskynän keltainen valinta.
+     Layout: tumma vihreä sivupalkki (mapin hakemistovälilehdet) + viivoitettu työalue. Yksi visuaalinen maailma, ei tummaa teemaa. */
+  --paper:#f4f6ee; --card:#fffffd; --ink:#11261c; --muted:#56685c; --rule:#cddbc9; --rule-strong:#9fb9a3;
+  --green:#1d5e40; --green-deep:#0e3326; --green-soft:#e2ede2;
+  --pencil:#c0321c; --pencil-soft:#fbe6e0; --amber:#a76200; --amber-soft:#fbefd6; --ok:#21734a; --ok-soft:#dff0e3; --low:#56685c; --low-soft:#e9eee5;
+  --hl:#ffe45c;
+  --font-display:"Bricolage Grotesque","Arial Narrow",system-ui,sans-serif;
+  --font-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --r:4px;
+  /* yhteensopivuus vanhojen nimien kanssa */
+  --bg:var(--paper); --surface:var(--card); --line:var(--rule); --accent:var(--green); --accent-soft:var(--green-soft);
+  --crit:var(--pencil); --crit-soft:var(--pencil-soft); --warn:var(--amber); --warn-soft:var(--amber-soft);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{color:var(--ink);font:15px/1.55 var(--font-body);
+  background-color:var(--paper);
+  background-image:repeating-linear-gradient(to bottom,transparent 0 27px,rgba(29,94,64,.075) 27px 28px);}
+h1,h2,h3{font-family:var(--font-display);font-weight:700;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:30px;line-height:1.1}
+h2{font-size:21px}
+h3{font-size:16px}
+.num,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+td.num,th.num{text-align:right;white-space:nowrap;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+a{color:var(--green)}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--pencil);outline-offset:2px}
+::selection{background:var(--hl)}
+
+/* sivupalkki */
+.app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100%}
+.side{background:var(--green-deep);color:#e9f1ea;padding:22px 16px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{display:flex;flex-direction:column;gap:10px}
+.brand .logo{width:58px;height:58px}
+.brand .name{font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.brand p{margin:0;font-size:12.5px;color:#a9c3b1;line-height:1.45}
+nav.tabs{display:flex;flex-direction:column;gap:4px}
+nav.tabs button{display:flex;justify-content:space-between;align-items:center;text-align:left;background:transparent;border:0;border-radius:var(--r);padding:9px 12px;color:#cfe0d3;cursor:pointer;font-weight:500;position:relative}
+nav.tabs button:hover{background:rgba(255,255,255,.07)}
+nav.tabs button[aria-selected="true"]{background:var(--paper);color:var(--ink);border-radius:var(--r) 0 0 var(--r);margin-right:-16px;padding-right:28px;font-weight:700}
+nav.tabs button .count{font-family:var(--font-mono);font-size:12px;opacity:.75}
+nav.tabs button .ix{font-family:var(--font-mono);font-size:11px;opacity:.6;margin-right:8px}
+.side .privacy{margin-top:auto;font-size:12px;color:#a9c3b1;display:flex;gap:8px;align-items:flex-start;border-top:1px solid rgba(255,255,255,.12);padding-top:14px}
+.side .privacy svg{flex:none;margin-top:2px}
+.dataset{display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.dataset .chip{align-self:flex-start}
+.mainwrap{min-width:0;display:flex;flex-direction:column}
+main{padding:26px 28px 40px;max-width:1500px;width:100%}
+footer.foot{padding:16px 28px 28px;font-size:12.5px;color:var(--muted);border-top:2px solid var(--rule-strong);margin:0 28px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  .side{position:static;height:auto;padding:16px;gap:12px}
+  .brand{flex-direction:row;align-items:center}
+  .brand .logo{width:42px;height:42px}
+  .brand p{display:none}
+  nav.tabs{flex-direction:row;overflow-x:auto}
+  nav.tabs button{white-space:nowrap;gap:6px}
+  nav.tabs button[aria-selected="true"]{margin-right:0;padding-right:12px;border-radius:var(--r)}
+  .side .privacy{display:none}
+  main{padding:18px 16px 32px}
+  footer.foot{margin:0 16px;padding:14px 0 24px}
+}
+
+section.view{display:none}
+section.view.on{display:block}
+.stack{display:flex;flex-direction:column;gap:18px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.card{background:var(--card);border:1px solid var(--rule);border-top:3px solid var(--green);border-radius:var(--r);padding:18px;box-shadow:0 1px 0 var(--rule)}
+.card > h2,.card > h3{margin-bottom:10px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.btn{border:1px solid var(--rule-strong);background:var(--card);border-radius:var(--r);padding:7px 12px;cursor:pointer;font-weight:600;font-size:14px;color:var(--ink)}
+.btn:hover{background:var(--green-soft)}
+.btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+.btn.primary:hover{background:var(--green-deep)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--green)}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:center;background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:22px 26px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;left:58px;top:0;bottom:0;width:4px;border-left:1px solid rgba(192,50,28,.35);border-right:1px solid rgba(192,50,28,.35)}
+.hero > div{position:relative;padding-left:52px}
+.hero .eyebrow{font-family:var(--font-mono);font-size:12px;color:var(--pencil);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.hero p{margin:8px 0 14px;max-width:62ch;color:var(--muted)}
+.hero svg.illu{width:100%;height:auto}
+@media (max-width:1100px){.hero{grid-template-columns:1fr}.hero svg.illu{max-width:360px}}
+@media (max-width:600px){.hero > div{padding-left:0}.hero::before{display:none}}
+
+/* tunnusluvut */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:12px 14px;position:relative}
+.tile .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.tile .v{font-family:var(--font-mono);font-size:23px;font-variant-numeric:tabular-nums;margin-top:2px;font-weight:500}
+.tile.crit{border-color:var(--pencil);background:linear-gradient(var(--pencil-soft),var(--card) 70%)}
+.tile.warn{border-color:var(--amber);background:linear-gradient(var(--amber-soft),var(--card) 70%)}
+.tile.crit .v{color:var(--pencil)} .tile.warn .v{color:var(--amber)}
+
+/* sarakepaperitaulukot */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+td+td,th+th{border-left:1px solid #e3ece1}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--green-deep);font-weight:700;background:var(--green-soft);position:sticky;top:0;border-bottom:3px double var(--rule-strong)}
+tr:last-child td{border-bottom:0}
+tr.total td{border-top:3px double var(--ink);font-weight:700}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:#f1f6ee}
+tbody tr.sel td{background:rgba(255,228,92,.45)}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:3px;padding:1px 7px 1px 3px;font-size:12px;line-height:18px;margin:1px 4px 1px 0;white-space:nowrap;background:var(--low-soft);color:var(--low);border:1px solid transparent}
+.chip.plain{padding-left:7px}
+.chip .tm{display:inline-grid;place-items:center;min-width:18px;height:16px;padding:0 3px;border-radius:9px;border:1.3px solid currentColor;font:600 9.5px/1 var(--font-mono)}
+.chip.crit{background:var(--pencil-soft);color:var(--pencil)}
+.chip.warn{background:var(--amber-soft);color:var(--amber)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.acc{background:var(--green-soft);color:var(--green)}
+.lvl{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px}
+.lvl::before{content:"";width:10px;height:10px;border-radius:50%;background:currentColor}
+.lvl.k3{color:var(--pencil)} .lvl.k2{color:var(--amber)} .lvl.k1{color:var(--low)}
+.lvl.k3::before{box-shadow:0 0 0 3px var(--pencil-soft)}
+tr.k3 td:first-child{box-shadow:inset 4px 0 var(--pencil)}
+tr.k2 td:first-child{box-shadow:inset 4px 0 var(--amber)}
+tr.k1 td:first-child{box-shadow:inset 4px 0 var(--rule-strong)}
+.split{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+.detail{position:sticky;top:14px;max-height:calc(100vh - 28px);overflow:auto;border-top-color:var(--pencil)}
+@media (max-width:1150px){.split{grid-template-columns:1fr}.detail{position:static;max-height:none}}
+.drop{display:grid;grid-template-columns:72px 1fr;gap:16px;align-items:center;border:2px dashed var(--rule-strong);border-radius:var(--r);padding:18px 20px;text-align:left;background:var(--card);cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover{border-color:var(--green)}
+.drop.over{border-color:var(--green);background:var(--green-soft)}
+.drop input{display:none}
+.drop svg{width:72px;height:72px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px 16px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+.form input,.form select,.form textarea,select.inp,input.inp,textarea.inp{border:1px solid var(--rule-strong);border-radius:var(--r);padding:6px 8px;background:#fff;color:var(--ink)}
+.form .hint{font-size:12px;font-weight:400}
+.toggle{display:flex;gap:8px;align-items:flex-start}
+.toggle input{margin-top:4px}
+.flags{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.flags li{border:1px solid var(--rule);border-left:3px solid var(--rule-strong);border-radius:var(--r);padding:8px 10px;background:#fbfcf8}
+.flags li.f3{border-left-color:var(--pencil)} .flags li.f2{border-left-color:var(--amber)}
+.flags li b{font-weight:700}
+.flags li .w{float:right;font-family:var(--font-mono);font-size:12px;color:var(--pencil);font-weight:600}
+.banner{background:var(--hl);border-radius:var(--r);padding:10px 14px;font-size:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+textarea.paper{width:100%;min-height:560px;font:13px/28px var(--font-mono);border:1px solid var(--rule-strong);border-radius:var(--r);padding:0 16px 0 70px;color:var(--ink);
+  background-color:#fffffd;background-image:linear-gradient(90deg,transparent 54px,rgba(192,50,28,.4) 54px,rgba(192,50,28,.4) 55px,transparent 55px,transparent 58px,rgba(192,50,28,.4) 58px,rgba(192,50,28,.4) 59px,transparent 59px),repeating-linear-gradient(to bottom,transparent 0 27px,rgba(29,94,64,.14) 27px 28px);background-attachment:local}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--green-deep);color:#fff;padding:9px 16px;border-radius:var(--r);font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
+.toast.on{opacity:1}
+details summary{cursor:pointer;color:var(--green);font-weight:600}
+pre.doctext{white-space:pre-wrap;font:12px/1.45 var(--font-mono);background:#fbfcf8;border:1px solid var(--rule);border-radius:var(--r);padding:10px;max-height:260px;overflow:auto}
+svg text{fill:var(--muted);font-family:var(--font-body);font-size:11px}
+svg .bar{fill:var(--green)}
+svg .bar.hi{fill:var(--pencil)}
+svg .exp{stroke:var(--ink);stroke-width:2;fill:none;stroke-dasharray:4 3}
+svg .grid{stroke:var(--rule);stroke-width:1}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:10px;margin-right:5px;vertical-align:-1px;background:var(--green);border-radius:2px}
+.legend i.l{height:0;border-top:2px dashed var(--ink);background:none;vertical-align:3px}
+.empty{padding:30px;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:10px}
+.empty svg{width:96px;height:auto}
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 14px}
+.mapgrid label{display:flex;flex-direction:column;gap:3px;font-size:13px}
+.req{color:var(--pencil)}
+td.marks{white-space:nowrap}
+.tmo{display:inline-grid;place-items:center;min-width:24px;height:22px;padding:0 4px;margin:0 3px 2px 0;border-radius:11px;border:1.5px solid var(--low);color:var(--low);font:600 10.5px/1 var(--font-mono);background:var(--card)}
+.tmo.crit{border-color:var(--pencil);color:var(--pencil);background:var(--pencil-soft)}
+.tmo.warn{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+.legend-marks{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px 14px;font-size:13px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-loupe" viewBox="0 0 96 96">
+      <circle cx="40" cy="40" r="26" fill="#fffffd" stroke="#11261c" stroke-width="5"/>
+      <path d="M22 34h36M22 42h28M22 50h32" stroke="#9fb9a3" stroke-width="3" stroke-linecap="round"/>
+      <path d="M30 41l6 6 12-14" stroke="#c0321c" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M59 59l22 22" stroke="#11261c" stroke-width="10" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-ledger" viewBox="0 0 72 72">
+      <rect x="14" y="6" width="46" height="58" rx="3" fill="#e2ede2" stroke="#1d5e40" stroke-width="2.5"/>
+      <rect x="9" y="11" width="46" height="56" rx="3" fill="#fffffd" stroke="#1d5e40" stroke-width="2.5"/>
+      <path d="M18 11v56" stroke="#c0321c" stroke-width="1.5"/>
+      <path d="M22 22h26M22 30h26M22 38h26M22 46h26M22 54h18" stroke="#9fb9a3" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M40 46h8" stroke="#c0321c" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="55" cy="57" r="11" fill="#1d5e40"/><path d="M55 51v12M49 57h12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-invoice" viewBox="0 0 72 72">
+      <path d="M12 6h38l10 10v50l-6-4-6 4-6-4-6 4-6-4-6 4-6-4-6 4z" fill="#fffffd" stroke="#1d5e40" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M50 6v10h10" fill="none" stroke="#1d5e40" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M20 20h18M20 28h28M20 36h28M34 48h14" stroke="#9fb9a3" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M33 45h16" stroke="#11261c" stroke-width="3" stroke-linecap="round"/>
+      <path d="M8 18c0-6 8-6 8 0v20c0 4-5 4-5 0V22" fill="none" stroke="#56685c" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="55" cy="57" r="11" fill="#1d5e40"/><path d="M55 51v12M49 57h12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M6 22h52c0 15-11.6 26-26 26S6 37 6 22z" fill="#1d5e40" stroke="#e9f1ea" stroke-width="2.5"/>
+        <path d="M14 24l8 18M24 24l5 22M34 24v24M44 24l-5 22M54 24l-8 18M9 31h46M13 39h38" stroke="#e9f1ea" stroke-width="1.4" opacity=".75"/>
+        <path d="M2 22h60" stroke="#e9f1ea" stroke-width="3" stroke-linecap="round"/>
+        <g fill="#a9c3b1"><circle cx="18" cy="12" r="2"/><circle cx="29" cy="7" r="2"/><circle cx="38" cy="14" r="2"/><circle cx="47" cy="9" r="2"/></g>
+        <path d="M26 54l5 5 10-12" stroke="#ff6b52" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="name">Kirjausseula</div>
+      <p>Päiväkirjan kirjausten testaus (JET) ja tositetäsmäytys tilintarkastukseen.</p>
+    </div>
+    <div class="dataset" id="dataset"></div>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-v="findings" aria-selected="true"><span><span class="ix">01</span>Löydökset</span><span class="count" id="c-findings"></span></button>
+      <button role="tab" data-v="data"><span><span class="ix">02</span>Aineisto</span><span class="count" id="c-data"></span></button>
+      <button role="tab" data-v="docs"><span><span class="ix">03</span>Tositteet</span><span class="count" id="c-docs"></span></button>
+      <button role="tab" data-v="analysis"><span><span class="ix">04</span>Analyysit</span></button>
+      <button role="tab" data-v="settings"><span><span class="ix">05</span>Asetukset ja testit</span></button>
+      <button role="tab" data-v="paper"><span><span class="ix">06</span>Työpaperi</span></button>
+    </nav>
+    <div class="privacy">
+      <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><rect x="1.5" y="8" width="13" height="9" rx="2" fill="none" stroke="#a9c3b1" stroke-width="1.6"/><path d="M4.5 8V5.5a3.5 3.5 0 017 0V8" fill="none" stroke="#a9c3b1" stroke-width="1.6"/></svg>
+      <span>Aineisto käsitellään vain tässä selaimessa. Mitään ei lähetetä palvelimelle.</span>
+    </div>
+  </aside>
+  <div class="mainwrap">
+<main>
+
+  <!-- LÖYDÖKSET -->
+  <section class="view on" id="v-findings">
+    <div class="stack">
+      <div id="demoBanner"></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px">
+          <h2>Testien osumat</h2>
+          <span class="small muted">Lyhenne ympyrässä on testin tarkastusmerkki. Klikkaa testiä suodattaaksesi listan.</span>
+        </div>
+        <div class="tbl-wrap"><table id="testTable"></table></div>
+      </div>
+      <div class="split">
+        <div class="card">
+          <div class="row" style="justify-content:space-between;margin-bottom:10px">
+            <h2>Tarkastettavat tositteet</h2>
+            <div class="row">
+              <button class="btn" id="btnDlFindings">Lataa CSV</button><button class="btn ghost" id="btnCopyFindings">Kopioi</button>
+              <button class="btn" id="btnRandom">Arvo satunnaisotos</button>
+            </div>
+          </div>
+          <div class="row" style="margin-bottom:10px">
+            <input class="inp" id="q" type="search" placeholder="Hae tositenumerolla, tilillä, selitteellä, käyttäjällä…" style="flex:1;min-width:220px" aria-label="Haku">
+            <select class="inp" id="fLevel" aria-label="Riskitaso">
+              <option value="all">Kaikki liputetut</option>
+              <option value="3">Korkea</option>
+              <option value="2">Kohonnut tai korkea</option>
+              <option value="sample">Otokseen valitut</option>
+              <option value="open">Avoimet (ei käsitelty)</option>
+            </select>
+            <select class="inp" id="fTest" aria-label="Testi"></select>
+          </div>
+          <div class="tbl-wrap"><table id="findTable"></table></div>
+          <div class="row" style="margin-top:10px;justify-content:center" id="moreRow"></div>
+        </div>
+        <div class="card detail" id="detail"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AINEISTO -->
+  <section class="view" id="v-data">
+    <div class="stack">
+      <div class="grid2">
+        <div class="card stack">
+          <h2>Syötä kirjanpitoaineisto</h2>
+          <p class="small muted" style="margin:0">Päiväkirja- tai pääkirjaraportti, yksi rivi per vienti. Paras muoto on CSV tai Excel suoraan kirjanpito-ohjelmasta. Myös tekstimuotoinen PDF-päiväkirjaraportti käy, kun siinä on sarakkeet Debet ja Kredit. Sarakkeet tunnistetaan otsikoista, ja tunnistuksen voi korjata käsin. Useita tiedostoja (esim. kuukausiajot) voi lisätä peräkkäin.</p>
+          <label class="drop" id="dropJ" for="fileJ">
+            <input type="file" id="fileJ" multiple accept=".csv,.txt,.tsv,.xlsx,.xls,.xlsm,.pdf">
+            <svg aria-hidden="true"><use href="#i-ledger"/></svg><span><strong>Pudota päiväkirja tähän</strong><br><span class="small muted">tai klikkaa valitaksesi · .csv .txt .xlsx .xls · PDF-päiväkirjaraportti</span></span>
+          </label>
+          <div class="row">
+            <button class="btn" id="btnDemo">Lataa esimerkkiaineisto</button>
+            <button class="btn" id="btnClear">Tyhjennä kaikki aineisto</button>
+          </div>
+        </div>
+        <div class="card stack">
+          <h2>Ladatut tiedostot</h2>
+          <div id="fileList"></div>
+        </div>
+      </div>
+      <div id="mapper"></div>
+      <div class="card">
+        <h2>Esikatselu</h2>
+        <p class="small muted" style="margin:4px 0 10px">Ensimmäiset 50 vientiä tunnistetussa muodossa.</p>
+        <div class="tbl-wrap" id="preview"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOSITTEET -->
+  <section class="view" id="v-docs">
+    <div class="stack">
+      <div class="grid2">
+        <div class="card stack">
+          <h2>Syötä tositteita</h2>
+          <p class="small muted" style="margin:0">Laskut, hyvityslaskut ja muut tositteet: PDF (tekstimuotoinen), Finvoice-XML tai teksti. Työkalu poimii laskunumeron, päiväyksen, loppusumman, Y-tunnuksen ja IBANin ja etsii vastaavan kirjauksen. Skannatuista kuva-PDF:istä ei saada tekstiä ilman OCR:ää.</p>
+          <label class="drop" id="dropD" for="fileD">
+            <input type="file" id="fileD" multiple accept=".pdf,.xml,.txt,.eml,.htm,.html">
+            <svg aria-hidden="true"><use href="#i-invoice"/></svg><span><strong>Pudota laskut ja tositteet tähän</strong><br><span class="small muted">tai klikkaa valitaksesi · .pdf .xml .txt .eml</span></span>
+          </label>
+          <div class="small muted" id="docStatus"></div>
+        </div>
+        <div class="card stack">
+          <h2>Täsmäytyksen tulos</h2>
+          <div class="tiles" id="docTiles"></div>
+          <div class="row">
+            <button class="btn" id="btnCopyRequest">Kopioi tositepyyntölista</button><button class="btn ghost" id="btnDlRequest">Lataa .txt</button>
+            <span class="small muted">Kohonneen ja korkean riskin tositteet, joille ei löytynyt tositetta.</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Tositteet ja niiden kirjaukset</h2>
+        <div class="tbl-wrap" style="margin-top:10px"><table id="docTable"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ANALYYSIT -->
+  <section class="view" id="v-analysis">
+    <div class="stack">
+      <div class="card">
+        <h2>Populaation täydellisyys</h2>
+        <p class="small muted" style="margin:4px 0 10px">Täsmäytä nämä luvut pääkirjaan ja tasekirjaan ennen kuin luotat testeihin (ISA 330 / JET: aineiston täydellisyys ja oikeellisuus).</p>
+        <div class="tiles" id="popTiles"></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>Benfordin laki, ensimmäinen numero</h3>
+          <div id="benford1"></div>
+        </div>
+        <div class="card">
+          <h3>Benfordin laki, kaksi ensimmäistä numeroa</h3>
+          <div id="benford2"></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3>Kirjaukset kuukausittain (tositteiden määrä)</h3><div id="monthly"></div></div>
+        <div class="card"><h3>Kirjaukset viikonpäivittäin</h3><div id="weekday"></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3>Käyttäjät</h3><div class="tbl-wrap" style="margin-top:8px"><table id="userTable"></table></div></div>
+        <div class="card"><h3>Tositenumeroinnin aukot</h3><div id="gaps"></div></div>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><h3>Tilisaldot aineistosta</h3><div class="row"><button class="btn" id="btnDlTB">Lataa CSV</button><button class="btn ghost" id="btnCopyTB">Kopioi</button></div></div>
+        <div class="tbl-wrap" style="margin-top:8px;max-height:480px;overflow:auto"><table id="tbTable"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ASETUKSET -->
+  <section class="view" id="v-settings">
+    <div class="stack">
+      <div class="card">
+        <h2>Toimeksianto ja olennaisuus</h2>
+        <div class="form" id="formMain" style="margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <h2>Testit ja painot</h2>
+        <p class="small muted" style="margin:4px 0 10px">Tositteen riskipisteet = laukaistujen testien painojen summa. Korkea ≥ 6, kohonnut 3–5, matala 1–2.</p>
+        <div class="tbl-wrap"><table id="weightTable"></table></div>
+      </div>
+      <div class="row"><button class="btn primary" id="btnApply">Aja testit uudelleen</button><span class="small muted" id="applyNote"></span></div>
+    </div>
+  </section>
+
+  <!-- TYÖPAPERI -->
+  <section class="view" id="v-paper">
+    <div class="stack">
+      <div class="row" style="justify-content:space-between">
+        <h2>Työpaperiluonnos</h2>
+        <div class="row"><button class="btn primary" id="btnDlPaper">Lataa .txt</button><button class="btn" id="btnCopyPaper">Kopioi työpaperi</button></div>
+      </div>
+      <p class="small muted" style="margin:0">Luonnos päivittyy tarkastajan merkinnöistä (tila, huomio, otos). Täydennä johtopäätös omalla harkinnallasi.</p>
+      <textarea class="paper" id="paper" readonly aria-label="Työpaperi"></textarea>
+    </div>
+  </section>
+</main>
+<footer class="foot"><span>Kirjausseula · avoin lähdekoodi (MIT) · <a href="https://github.com/Peterkcs/kirjausseula">GitHub</a></span><span>Testit noudattavat ISA 240- ja ISA 330 -standardien mukaista kirjausten testausta. Työkalu ei korvaa tilintarkastajan harkintaa.</span></footer>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+"use strict";
+/* ============ apufunktiot ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf2=new Intl.NumberFormat('fi-FI',{minimumFractionDigits:2,maximumFractionDigits:2});
+const nf0=new Intl.NumberFormat('fi-FI',{maximumFractionDigits:0});
+const eur=n=>nf2.format(n||0);
+const eur0=n=>nf0.format(Math.round(n||0));
+const pct=(a,b)=>b?(100*a/b).toFixed(1).replace('.',',')+' %':'–';
+const r2=n=>Math.round(n*100)/100;
+const DAY=864e5;
+const dn=(y,m,d)=>Math.round(Date.UTC(y,m-1,d)/DAY);
+const dnDate=n=>new Date(n*DAY);
+const dnStr=n=>{if(n==null)return'';const d=dnDate(n);return d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear()};
+const dnISO=n=>n==null?'':dnDate(n).toISOString().slice(0,10);
+const isoDn=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return m?dn(+m[1],+m[2],+m[3]):null};
+const wd=n=>dnDate(n).getUTCDay();
+const WD=['su','ma','ti','ke','to','pe','la'];
+const norm=s=>String(s??'').toLowerCase().replace(/[äå]/g,'a').replace(/ö/g,'o').replace(/[^a-z0-9]/g,'');
+
+function parseNum(v){
+  if(v==null||v==='')return null;
+  if(typeof v==='number')return isFinite(v)?v:null;
+  let s=String(v).trim().replace(/[\s  ']/g,'').replace(/€|eur/gi,'');
+  if(!s)return null;
+  let neg=false;
+  if(/^\(.*\)$/.test(s)){neg=true;s=s.slice(1,-1)}
+  if(/-$/.test(s)){neg=true;s=s.slice(0,-1)}
+  if(/^[-−–]/.test(s)){neg=!neg;s=s.slice(1)}
+  const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.');
+  if(lc>-1&&ld>-1){ if(lc>ld)s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/,/g,''); }
+  else if(lc>-1){ s=(s.match(/,/g).length>1)?s.replace(/,/g,''):s.replace(',','.'); }
+  else if(ld>-1&&(s.match(/\./g).length>1))s=s.replace(/\./g,'');
+  if(!/^\d*\.?\d+$/.test(s))return null;
+  const n=parseFloat(s);
+  return neg?-n:n;
+}
+function parseDate(v){
+  if(v==null||v==='')return null;
+  if(v instanceof Date&&!isNaN(v))return dn(v.getFullYear(),v.getMonth()+1,v.getDate());
+  if(typeof v==='number'){ if(v>20000&&v<80000)return Math.round(v-25569); if(v>19000101&&v<21001231){const s=String(v);return dn(+s.slice(0,4),+s.slice(4,6),+s.slice(6,8))} return null }
+  const s=String(v).trim();
+  let m=/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/.exec(s);
+  if(m){let y=+m[3];if(y<100)y+=2000;const d=+m[1],mo=+m[2];if(mo>=1&&mo<=12&&d>=1&&d<=31)return dn(y,mo,d)}
+  m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);if(m)return dn(+m[1],+m[2],+m[3]);
+  m=/^(\d{4})(\d{2})(\d{2})$/.exec(s);if(m)return dn(+m[1],+m[2],+m[3]);
+  return null;
+}
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2200)}
+async function copyText(txt,what){
+  try{await navigator.clipboard.writeText(txt);toast(what+' kopioitu leikepöydälle')}
+  catch(e){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();toast(ok?what+' kopioitu leikepöydälle':'Kopiointi estettiin. Valitse teksti Työpaperi-välilehdeltä käsin.')}
+}
+function csvCell(v){const s=String(v??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+const csvNum=n=>(n==null?'':String(r2(n)).replace('.',','));
+
+/* Suomen pyhäpäivät */
+const holCache={};
+function holidays(y){
+  if(holCache[y])return holCache[y];
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
+  const em=Math.floor((h+l-7*m+114)/31),ed=((h+l-7*m+114)%31)+1,E=dn(y,em,ed);
+  const map=new Map();
+  const add=(n,name)=>map.set(n,name);
+  add(dn(y,1,1),'uudenvuodenpäivä');add(dn(y,1,6),'loppiainen');add(E-2,'pitkäperjantai');add(E,'pääsiäispäivä');add(E+1,'2. pääsiäispäivä');add(E+39,'helatorstai');add(dn(y,5,1),'vappu');
+  for(let d=19;d<=25;d++){const n=dn(y,6,d);if(wd(n)===5){add(n,'juhannusaatto');add(n+1,'juhannuspäivä')}}
+  for(let n=dn(y,10,31);n<=dn(y,11,6);n++)if(wd(n)===6)add(n,'pyhäinpäivä');
+  add(dn(y,12,6),'itsenäisyyspäivä');add(dn(y,12,24),'jouluaatto');add(dn(y,12,25),'joulupäivä');add(dn(y,12,26),'tapaninpäivä');
+  return holCache[y]=map;
+}
+function dayKind(n){if(n==null)return null;const y=dnDate(n).getUTCFullYear();const h=holidays(y).get(n);if(h)return h;const w=wd(n);if(w===0)return'sunnuntai';if(w===6)return'lauantai';return null}
+
+/* ============ tila ============ */
+const S={lines:[],files:[],docs:[],settings:null,review:{},demo:false,sel:null,showN:60,res:null,pending:[],randomSeed:null};
+const LS_KEY='kirjausseula.review.v1';
+
+const TESTS=[
+ {id:'bal',w:5,name:'Epätasapainoinen tosite',why:'Debet ja kredit eivät täsmää tositteella. Kertoo puutteellisesta aineistosta tai järjestelmän ohituksesta.'},
+ {id:'post',w:4,name:'Kirjattu tilikauden päätyttyä',why:'Syöttöpäivä on tilikauden jälkeen, mutta kirjaus kohdistuu tarkastettavalle kaudelle. ISA 240 nimeää tilinpäätöksen laatimisvaiheen oikaisut erikseen.'},
+ {id:'mgmt',w:3,name:'Johdon käyttäjätunnus',why:'Kirjauksen on tehnyt johdon jäsen tai pääkäyttäjä. Johdon kontrollien ohittamisen riski (ISA 240.32).'},
+ {id:'below',w:3,name:'Juuri hyväksymisrajan alla',why:'Summa on hyväksymisrajan alapuolella asetetun marginaalin sisällä. Voi viitata hyväksyntämenettelyn kiertämiseen tai laskun pilkkomiseen.'},
+ {id:'dup',w:3,name:'Mahdollinen kaksoiskirjaus',why:'Sama vastapuoli, summa ja tilit lyhyen ajan sisällä tai sama laskunumero kahdesti.'},
+ {id:'key',w:2,name:'Olennainen ei-rutiininomainen erä',why:'Tositteen summa ylittää toimeksiannon olennaisuusrajan (PM), eikä kirjaus tule rutiinilähteestä tai järjestelmäkäyttäjältä.'},
+ {id:'revpair',w:3,name:'Liikevaihto epätavallista vastatiliä vastaan',why:'Liikevaihtotiliä on hyvitetty muuta kuin rahoitusomaisuus- tai saamistiliä vastaan. Tulojen kirjaamiseen liittyy olettamana väärinkäytösriski (ISA 240.26).'},
+ {id:'cutoff',w:3,name:'Tositteen päiväys eri kaudella kuin kirjaus',why:'Täsmätyn laskun päiväys ja kirjauspäivä osuvat eri tilikausille. Jaksotusriski.'},
+ {id:'docamt',w:3,name:'Tositteen summa poikkeaa kirjauksesta',why:'Laskunumero täsmää, mutta laskun loppusumma ei vastaa kirjattua summaa.'},
+ {id:'wkend',w:2,name:'Viikonloppu tai pyhäpäivä',why:'Tositepäivä tai syöttöpäivä on lauantai, sunnuntai tai suomalainen pyhäpäivä.'},
+ {id:'back',w:2,name:'Viivästetty tai etupainotteinen kirjaus',why:'Syöttöpäivän ja tositepäivän ero ylittää asetetun rajan.'},
+ {id:'rareacc',w:2,name:'Harvoin käytetty tili',why:'Tiliä on käytetty vain muutamalla tositteella koko aineistossa.'},
+ {id:'rareuser',w:2,name:'Harvinainen käyttäjä',why:'Käyttäjä on tehnyt vain muutaman kirjauksen. Tavallisesti kirjanpitoa hoitavien ulkopuolinen henkilö.'},
+ {id:'kw',w:2,name:'Riskisana selitteessä',why:'Selitteessä esiintyy oikaisuun, korjaukseen tai väliaikaisuuteen viittaava sana.'},
+ {id:'numdup',w:2,name:'Sama tositenumero eri päivinä',why:'Tositenumerolla on vientejä useana päivänä. Numerointi ei ole yksiselitteinen.'},
+ {id:'pend',w:1,name:'Tilikauden vaihteen kirjaus',why:'Tositepäivä on tilikauden viimeisinä tai seuraavan kauden ensimmäisinä päivinä.'},
+ {id:'round',w:1,name:'Tasasumma',why:'Summa on tasan jaollinen asetetulla luvulla. Arviokirjaukset ja keksityt luvut ovat usein tasalukuja.'},
+ {id:'nodesc',w:1,name:'Puuttuva selite',why:'Tositteella ei ole selitettä tai se on alle kolme merkkiä.'},
+ {id:'benford',w:1,name:'Benford-poikkeama',why:'Summan kaksi ensimmäistä numeroa kuuluvat ryhmään, joka on aineistossa tilastollisesti yliedustettu (z > 3,29, merkitsevyys 0,1 %).'}
+];
+const TEST_BY=Object.fromEntries(TESTS.map(t=>[t.id,t]));
+
+function defaultSettings(){
+  const st={start:null,end:null,client:'',pm:0,trivial:0,approval:10000,nearPct:5,roundBase:1000,pendDays:5,backDays:30,futureDays:7,rareAcc:2,rareUser:5,
+    mgmtUsers:'tj_virtanen, toimitusjohtaja, cfo, admin, pääkäyttäjä',keywords:'korjaus, oikaisu, oikaistaan, väliaikai, siirto, johdon, bonus, hyvitys, palautus, mitätöi, peruutus, ks. erillinen, sekal, muu, adj, manual, reversal, misc',
+    routine:'system, Pankki, Palkat, Myyntireskontra, Ostoreskontra',revPrefix:'3',okPairPrefix:'1',bankPrefix:'19',weights:Object.fromEntries(TESTS.map(t=>[t.id,t.w])),off:{}};
+  return st;
+}
+function inferSettings(st){
+  const ds=S.lines.map(l=>l.date).filter(x=>x!=null);
+  if(!ds.length)return st;
+  if(S.period&&S.period.start!=null&&S.period.end!=null){st.start=S.period.start;st.end=S.period.end}else{
+  let mn=Infinity;for(const d of ds)if(d<mn)mn=d;
+  const d0=dnDate(mn);const y=d0.getUTCFullYear(),m=d0.getUTCMonth()+1;
+  st.start=dn(y,m,1);
+  st.end=dn(m===1?y:y+1,m===1?12:m-1, 1);
+  const e=dnDate(st.end);st.end=dn(e.getUTCFullYear(),e.getUTCMonth()+1,new Date(Date.UTC(e.getUTCFullYear(),e.getUTCMonth()+1,0)).getUTCDate());}
+  let rev=0;for(const l of S.lines)if(l.account.startsWith(st.revPrefix)&&l.date>=st.start&&l.date<=st.end)rev+=l.credit-l.debit;
+  const days=st.end-st.start+1;st.revAnn=days<330&&rev>0;if(st.revAnn)rev=rev*365/days;
+  let base=rev*0.01;if(rev<=0){let deb=0;for(const l of S.lines)deb+=l.debit;base=deb*0.0025;st.pmBasis='deb'}else st.pmBasis='rev';
+  const om=Math.max(base,1000);
+  st.pm=Math.max(1000,Math.round(om*0.75/1000)*1000);
+  st.trivial=Math.max(100,Math.round(st.pm*0.05/100)*100);
+  st.revenue=rev;
+  return st;
+}
+
+/* ============ tiedostojen luku ============ */
+async function readText(file){
+  const buf=await file.arrayBuffer();
+  try{return new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(e){return new TextDecoder('windows-1252').decode(buf)}
+}
+function parseCSV(text){
+  text=text.replace(/^﻿/,'');
+  const head=text.split(/\r?\n/).slice(0,8).join('\n');
+  const cands=[';','\t',',','|'];
+  const cnt=c=>head.split(c).length-1;
+  const d=cands.sort((a,b)=>cnt(b)-cnt(a))[0];
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){f+='"';i++} else q=false } else f+=ch; continue }
+    if(ch==='"'&&f===''){q=true;continue}
+    if(ch===d){row.push(f);f='';continue}
+    if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&text[i+1]==='\n')i++; row.push(f);rows.push(row);row=[];f='';continue }
+    f+=ch;
+  }
+  if(f!==''||row.length){row.push(f);rows.push(row)}
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+/* PDF-muotoinen päiväkirjaraportti (esim. "Päiväkirja, pkviennit"): rivit kootaan sijainnin perusteella, debet/kredit päätellään sarakeotsikoiden x-sijainnista */
+const AMT_FULL=/^-?\d{1,3}(?:[   .]\d{3})*,\d{2}-?$|^-?\d+,\d{2}-?$|^-?\d{1,3}(?:,\d{3})*\.\d{2}$/;
+async function parsePdfJournal(file){
+  if(typeof pdfjsLib==='undefined')throw new Error('PDF-kirjasto ei latautunut. Vie päiväkirja ohjelmasta CSV- tai Excel-muodossa.');
+  try{pdfjsLib.GlobalWorkerOptions.workerSrc=pdfjsLib.GlobalWorkerOptions.workerSrc||'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}catch(e){}
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false}).promise;
+  const out=[['Tositepvm','Tosite','Tili','Tilin nimi','Selite','Debet','Kredit']];
+  let cols=null,curDate=null,curV=null,period=null,client='',allText='';
+  for(let p=1;p<=pdf.numPages;p++){
+    const tc=await(await pdf.getPage(p)).getTextContent();
+    const items=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({x:i.transform[4],y:i.transform[5],w:i.width,s:i.str.trim()})).sort((a,b)=>b.y-a.y||a.x-b.x);
+    const rows=[];
+    for(const it of items){const r=rows.find(r=>Math.abs(r.y-it.y)<=2.5);if(r)r.items.push(it);else rows.push({y:it.y,items:[it]})}
+    rows.sort((a,b)=>b.y-a.y);
+    for(const r of rows){
+      r.items.sort((a,b)=>a.x-b.x);
+      const txt=r.items.map(i=>i.s).join(' ');allText+=txt+'\n';
+      const hd=r.items.find(i=>/^debet$|^debit$/i.test(i.s)),hk=r.items.find(i=>/^kredit$|^credit$/i.test(i.s));
+      if(hd&&hk){cols={d:hd.x+hd.w,k:hk.x+hk.w};continue}
+      if(!cols)continue;
+      const amts=[],rest=[];
+      for(const i of r.items){if(AMT_FULL.test(i.s)&&i.x>cols.d-160)amts.push(i);else rest.push(i)}
+      const t=rest.map(i=>i.s).join(' ').replace(/\s+/g,' ').trim();
+      let m=/^(\d{1,2}\.\d{1,2}\.\d{4})\s+([A-Za-z0-9\-\/]+)\s+(\d{3,8})\b\s*(.*)$/.exec(t);
+      let acc,rem;
+      if(m){curDate=m[1];curV=m[2];acc=m[3];rem=m[4]}
+      else{m=/^(\d{3,8})\b\s*(.*)$/.exec(t);if(!m||!curV||!amts.length)continue;acc=m[1];rem=m[2]}
+      if(!amts.length)continue;
+      let deb='',cred='';
+      for(const a of amts){const e=a.x+a.w;if(Math.abs(e-cols.d)<=Math.abs(e-cols.k))deb=a.s;else cred=a.s}
+      const k=rem.indexOf(' / ');
+      const name=k>-1?rem.slice(0,k):rem,desc=k>-1?rem.slice(k+3).replace(/^\d+\s+/,''):'';
+      out.push([curDate,curV,acc,name,desc,deb,cred]);
+    }
+  }
+  const pm=/Tilikausi\s+(\d{1,2}\.\d{1,2}\.\d{4})\s*-\s*(\d{1,2}\.\d{1,2}\.\d{4})/i.exec(allText);
+  if(pm)period={start:parseDate(pm[1]),end:parseDate(pm[2])};
+  if(out.length<2)throw new Error('PDF:stä ei tunnistettu vientejä. Työkalu tukee päiväkirjaraportteja, joissa on sarakkeet Debet ja Kredit. Kuva-PDF:t eivät toimi. Vie päiväkirja mieluummin CSV- tai Excel-muodossa.');
+  out.period=period;
+  return out;
+}
+async function readJournalFile(file){
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='pdf')return parsePdfJournal(file);
+  if(!['csv','txt','tsv','xlsx','xls','xlsm'].includes(ext))throw new Error('Tiedostomuotoa .'+ext+' ei tueta kirjanpitoaineistona. Käytä CSV-, TXT-, Excel- tai PDF-päiväkirjaa.');
+  if(['xlsx','xls','xlsm'].includes(ext)){
+    if(typeof XLSX==='undefined')throw new Error('Excel-kirjasto ei latautunut. Tallenna tiedosto CSV-muotoon.');
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+    let best=null,bestN=-1;
+    for(const n of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});if(rows.length>bestN){best=rows;bestN=rows.length}}
+    return best.filter(r=>r.some(c=>String(c).trim()!==''));
+  }
+  const txt=await readText(file);
+  if(/^%PDF|\u0000/.test(txt.slice(0,1024)))throw new Error('Tiedosto ei ole tekstimuotoinen. Tarkista tiedostopääte.');
+  return parseCSV(txt);
+}
+
+const FIELDS=[
+ ['voucher','Tositenumero',false,['tosite','tositenro','tositenumero','tositeno','tositteennumero','voucher','voucherno','entryno','journalno','journalentry','jeid','documentno','docno','vientinro','tositetunnus']],
+ ['date','Tositepäivä',true,['pvm','paivamaara','tositepvm','tositepaiva','kirjauspaiva','kirjauspvm','kirjanpitopaiva','date','postingdate','effectivedate','paivays','tapahtumapaiva']],
+ ['entryDate','Syöttöpäivä',false,['syottopvm','syottopaiva','luontipvm','luontipaiva','luotu','tallennettu','tallennuspvm','tallennuspaiva','kirjattu','entrydate','createddate','created','createdon','enteredon','enteredate','creationdate','systemdate']],
+ ['account','Tili',true,['tili','tilinro','tilinumero','tilino','account','accountno','accountnumber','glaccount','gl','tilikoodi']],
+ ['accountName','Tilin nimi',false,['tilinnimi','tilinimi','accountname','accountdescription','glname','tilinkuvaus']],
+ ['debit','Debet',false,['debet','debit','dr','debetsumma','debeteur']],
+ ['credit','Kredit',false,['kredit','credit','cr','kreditsumma','krediteur']],
+ ['amount','Summa (etumerkillinen)',false,['summa','maara','rahamaara','amount','euro','eur','eursumma','netamount','arvo','saldo']],
+ ['desc','Selite',false,['selite','kuvaus','teksti','vientiselite','description','memo','text','narrative','selitys','vientiteksti']],
+ ['user','Käyttäjä',false,['kayttaja','kirjaaja','tekija','kayttajatunnus','user','userid','createdby','enteredby','username','tallentaja']],
+ ['source','Lähde / tositelaji',false,['lahde','tositelaji','laji','tyyppi','source','type','journal','journaltype','sarja','tositesarja','tositelaji']],
+ ['partner','Vastapuoli',false,['toimittaja','asiakas','vastapuoli','kumppani','partner','vendor','customer','supplier','nimi','toimittajannimi','asiakkaannimi']],
+ ['ref','Lasku- / viitenumero',false,['laskunro','laskunumero','lasku','viite','viitenumero','invoiceno','invoicenumber','invoice','reference','ref','docref','laskuno']]
+];
+function guessHeader(rows){
+  let best=0,bestScore=-1;
+  const all=new Set(FIELDS.flatMap(f=>f[3]));
+  for(let r=0;r<Math.min(rows.length,15);r++){
+    const sc=rows[r].filter(c=>all.has(norm(c))).length;
+    if(sc>bestScore){bestScore=sc;best=r}
+  }
+  return best;
+}
+function guessMap(header){
+  const H=header.map(norm),map={},used=new Set();
+  for(const [k,,,syn] of FIELDS){const i=H.findIndex((h,ix)=>!used.has(ix)&&syn.includes(h));if(i>-1){map[k]=i;used.add(i)}}
+  for(const [k,,,syn] of FIELDS){
+    if(map[k]!=null)continue;
+    const ss=syn.filter(s=>s.length>=4).sort((a,b)=>b.length-a.length);
+    const i=H.findIndex((h,ix)=>!used.has(ix)&&ss.some(s=>h.includes(s)));
+    if(i>-1){map[k]=i;used.add(i)}
+  }
+  return map;
+}
+function buildLines(p){
+  const {rows,headerIdx,map,name}=p;const out=[];let skipped=0;
+  const g=(r,k)=>map[k]==null||map[k]===''?'':r[map[k]];
+  for(let i=headerIdx+1;i<rows.length;i++){
+    const r=rows[i];
+    const acct=String(g(r,'account')??'').trim();
+    const date=parseDate(g(r,'date'));
+    let debit=0,credit=0;
+    if(map.debit!=null&&map.debit!==''||map.credit!=null&&map.credit!==''){debit=parseNum(g(r,'debit'))||0;credit=parseNum(g(r,'credit'))||0;if(debit<0){credit+=-debit;debit=0}if(credit<0){debit+=-credit;credit=0}}
+    else{const a=parseNum(g(r,'amount'));if(a==null){skipped++;continue}if(a>=0)debit=a;else credit=-a}
+    if(!acct||date==null||(debit===0&&credit===0)){skipped++;continue}
+    const v=String(g(r,'voucher')??'').trim();
+    out.push({voucher:v||(name+'#'+(i+1)),date,entryDate:parseDate(g(r,'entryDate')),account:acct,accountName:String(g(r,'accountName')??'').trim(),
+      debit:r2(debit),credit:r2(credit),desc:String(g(r,'desc')??'').trim(),user:String(g(r,'user')??'').trim(),source:String(g(r,'source')??'').trim(),
+      partner:String(g(r,'partner')??'').trim(),ref:String(g(r,'ref')??'').trim(),file:name,row:i+1});
+  }
+  return {out,skipped};
+}
+
+/* ============ tositteiden luku ja poiminta ============ */
+async function pdfText(file){
+  if(typeof pdfjsLib==='undefined')throw new Error('PDF-kirjasto ei latautunut');
+  try{pdfjsLib.GlobalWorkerOptions.workerSrc=pdfjsLib.GlobalWorkerOptions.workerSrc||'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}catch(e){}
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false}).promise;
+  let txt='';
+  for(let p=1;p<=Math.min(pdf.numPages,20);p++){
+    const tc=await(await pdf.getPage(p)).getTextContent();
+    const rows=new Map();
+    for(const it of tc.items){if(!it.str)continue;const y=Math.round(it.transform[5]/3);if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
+    const ys=[...rows.keys()].sort((a,b)=>b-a);
+    for(const y of ys){txt+=rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str).join(' ').replace(/\s+/g,' ').trim()+'\n'}
+    txt+='\n';
+  }
+  return txt;
+}
+const AMT_RE=/(?<![\d.,])-?(?:\d{1,3}(?:[   .,]\d{3})+|\d+)[.,]\d{2}(?![\d])/g;
+const DATE_RE=/\b(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})\b|\b(\d{4})-(\d{2})-(\d{2})\b/;
+function firstDate(s){const m=DATE_RE.exec(s||'');if(!m)return null;return m[4]?dn(+m[4],+m[5],+m[6]):parseDate(m[1]+'.'+m[2]+'.'+m[3])}
+function extractFields(text,name){
+  const d={name,text,type:'Tosite',invoiceNo:'',date:null,due:null,total:null,vendor:'',ytunnus:'',iban:'',credit:false};
+  if(/<Finvoice/i.test(text)){
+    try{
+      const x=new DOMParser().parseFromString(text,'application/xml');const t=s=>{const e=x.getElementsByTagName(s)[0];return e?e.textContent.trim():''};
+      d.type='Finvoice-lasku';d.invoiceNo=t('InvoiceNumber');d.date=parseDate(t('InvoiceDate'));d.due=parseDate(t('InvoiceDueDate'));
+      d.total=parseNum(t('InvoiceTotalVatIncludedAmount'));d.vendor=t('SellerOrganisationName');d.ytunnus=t('SellerPartyIdentifier');d.iban=t('EpiAccountID');
+      const tc=t('InvoiceTypeCode');if(/INV02|HYV|credit/i.test(tc)){d.credit=true;d.type='Finvoice-hyvityslasku'}
+      if(d.total!=null&&d.total<0){d.credit=true}
+      return d;
+    }catch(e){}
+  }
+  const T=text.replace(/\r/g,'');
+  if(/hyvityslasku|credit\s*note/i.test(T)){d.type='Hyvityslasku';d.credit=true}
+  else if(/\blasku\b|invoice/i.test(T))d.type='Lasku';
+  else if(/tiliote|account statement/i.test(T))d.type='Tiliote';
+  else if(/sopimus|agreement|contract/i.test(T))d.type='Sopimus';
+  let m=/(?:laskun\s*(?:numero|nro|no)|lasku\s*(?:nro|numero|no)|hyvityslasku\s*(?:nro|numero)?|invoice\s*(?:number|no\.?|#))\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\/]{2,})/i.exec(T);
+  if(m)d.invoiceNo=m[1];
+  m=/(?:laskun\s*päivä(?:ys|määrä)?|laskupäivä|laskun\s*pvm|päiväys|invoice\s*date|päivämäärä|pvm)\s*[:.]?\s*([0-9.\-]{8,10})/i.exec(T);
+  d.date=m?firstDate(m[1]):firstDate(T);
+  m=/(?:eräpäivä|due\s*date)\s*[:.]?\s*([0-9.\-]{8,10})/i.exec(T);if(m)d.due=firstDate(m[1]);
+  m=/\b(\d{7}-\d)\b/.exec(T);if(m)d.ytunnus=m[1];
+  m=/\bFI\d{2}(?:\s?\d{4}){3}\s?\d{2}\b/.exec(T);if(m)d.iban=m[0].replace(/\s/g,'');
+  const lines=T.split('\n').map(s=>s.trim()).filter(Boolean);
+  const pri=[/maksettava|loppusumma|total\s*due|amount\s*due|yhteensä\s*(?:sis|incl)|summa\s*yhteensä/i,/yhteensä|total|summa/i];
+  for(const re of pri){
+    let mx=null;
+    for(const ln of lines){if(!re.test(ln)||/alv\s*\d|vat\s*\d|veroton|ilman alv|excl/i.test(ln)&&!/sis|incl/i.test(ln))continue;const a=(ln.match(AMT_RE)||[]).map(parseNum).filter(x=>x!=null);for(const x of a)if(mx==null||Math.abs(x)>Math.abs(mx))mx=x}
+    if(mx!=null){d.total=mx;break}
+  }
+  if(d.total==null){const a=(T.match(AMT_RE)||[]).map(parseNum).filter(x=>x!=null);if(a.length)d.total=a.reduce((p,c)=>Math.abs(c)>Math.abs(p)?c:p)}
+  if(d.credit&&d.total>0)d.total=-d.total;
+  m=/(?:myyjä|toimittaja|laskuttaja|seller|from)\s*[:]\s*(.+)/i.exec(T);
+  if(m)d.vendor=m[1].trim();
+  else{const yi=lines.findIndex(l=>/\d{7}-\d/.test(l));const cand=lines.find(l=>/\b(oy|oyj|ab|ky|tmi|ltd|gmbh|inc|ry)\b/i.test(l)&&!/ostaja|asiakas|buyer|bill to/i.test(l));d.vendor=cand||(yi>0?lines[yi-1]:lines[0]||'')}
+  d.vendor=d.vendor.replace(/y-tunnus.*$/i,'').slice(0,60).trim();
+  return d;
+}
+async function readDocFile(file){
+  const ext=file.name.split('.').pop().toLowerCase();
+  let text='';
+  if(ext==='pdf')text=await pdfText(file);
+  else text=await readText(file);
+  if(ext==='htm'||ext==='html'){const div=document.createElement('div');div.innerHTML=text;text=div.innerText||div.textContent}
+  const d=extractFields(text,file.name);
+  if(!text.trim())d.warn='Tiedostosta ei saatu tekstiä (mahdollisesti skannattu kuva).';
+  return d;
+}
+
+/* ============ analyysi ============ */
+function analyze(){
+  const st=S.settings,W=k=>st.off[k]?0:(+st.weights[k]||0);
+  const V=new Map();
+  for(const l of S.lines){let v=V.get(l.voucher);if(!v){v={id:l.voucher,lines:[],flags:[],docs:[]};V.set(l.voucher,v)}v.lines.push(l)}
+  const vs=[...V.values()];
+  for(const v of vs){
+    let deb=0,cred=0,mn=Infinity,mx=-Infinity,ed=null;const users=new Set(),dates=new Set();
+    for(const l of v.lines){deb+=l.debit;cred+=l.credit;if(l.date<mn)mn=l.date;if(l.date>mx)mx=l.date;dates.add(l.date);if(l.entryDate!=null&&(ed==null||l.entryDate>ed))ed=l.entryDate;if(l.user)users.add(l.user)}
+    v.debit=r2(deb);v.credit=r2(cred);v.total=Math.max(v.debit,v.credit);v.date=mn;v.dates=dates;v.entryDate=ed;v.users=[...users];
+    v.desc=(v.lines.find(l=>l.desc)||{}).desc||'';v.partner=(v.lines.find(l=>l.partner)||{}).partner||'';v.ref=(v.lines.find(l=>l.ref)||{}).ref||'';
+    v.source=(v.lines.find(l=>l.source)||{}).source||'';
+    v.accounts=[...new Set(v.lines.map(l=>l.account))].sort();
+    v.sig=v.accounts.join('|');
+  }
+  vs.sort((a,b)=>a.date-b.date||String(a.id).localeCompare(String(b.id),'fi',{numeric:true}));
+  for(const v of vs)v.opening=v.lines.every(l=>/avaava tase|avausvien|avaava saldo|opening balance/i.test(l.desc+' '+l.accountName));
+  const skip={};
+  if(vs.length<200){skip.rareacc='alle 200 tositetta';skip.rareuser='alle 200 tositetta'}
+  const flag=(v,id,text)=>{if(skip[id])return;if(!W(id)&&!st.keepZero)return;if(v.opening&&id!=='bal')return;const f=v.flags.find(x=>x.id===id);if(f){if(text&&!f.text.includes(text))f.text+='; '+text}else v.flags.push({id,text})};
+
+  const accCount=new Map(),userCount=new Map();
+  for(const v of vs){for(const a of v.accounts)accCount.set(a,(accCount.get(a)||0)+1);for(const u of v.users)userCount.set(u,(userCount.get(u)||0)+1)}
+  const mgmt=st.mgmtUsers.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const kws=st.keywords.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const kwRe=kws.length?new RegExp('(^|[^a-zåäö0-9])('+kws.map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','i'):null;
+  const accName=new Map();for(const l of S.lines)if(l.accountName&&!accName.has(l.account))accName.set(l.account,l.accountName);
+  const inPeriod=v=>v.date>=st.start&&v.date<=st.end;
+  const routine=st.routine.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const nonBankRefs=new Set(vs.filter(v=>v.ref&&!v.accounts.some(a=>a.startsWith(st.bankPrefix))).map(v=>norm(v.ref)));
+  for(const v of vs){v.settle=!!v.ref&&v.accounts.some(a=>a.startsWith(st.bankPrefix))&&nonBankRefs.has(norm(v.ref));v.routine=v.users.some(u=>routine.includes(u.toLowerCase()))||routine.includes(v.source.toLowerCase())}
+
+  /* Benford 2 numeroa */
+  const fd=x=>{x=Math.abs(x);if(x<10)return null;const s=x.toExponential(6);return +s[0]*10+ +s[2]};
+  const amts=[];for(const l of S.lines){const a=l.debit||l.credit;if(a>=10)amts.push(a)}
+  const n2=amts.length,c2=new Array(100).fill(0),c1=new Array(10).fill(0);
+  for(const a of amts){const t=fd(a);c2[t]++;c1[Math.floor(t/10)]++}
+  const z=(o,e,n)=>{const po=o/n;return Math.max(0,(Math.abs(po-e)-1/(2*n)))/Math.sqrt(e*(1-e)/n)};
+  const ben2=[],hot=new Set();let mad2=0,mad1=0;
+  for(let d=10;d<100;d++){const e=Math.log10(1+1/d);const zz=n2?z(c2[d],e,n2):0;ben2.push({d,o:c2[d],p:n2?c2[d]/n2:0,e,z:zz});mad2+=n2?Math.abs(c2[d]/n2-e):0;if(zz>3.29&&c2[d]/n2>e)hot.add(d)}
+  const ben1=[];for(let d=1;d<10;d++){const e=Math.log10(1+1/d);const zz=n2?z(c1[d],e,n2):0;ben1.push({d,o:c1[d],p:n2?c1[d]/n2:0,e,z:zz});mad1+=n2?Math.abs(c1[d]/n2-e):0}
+  mad1/=9;mad2/=90;
+  if(n2<500){skip.benford='alle 500 vientiä';hot.clear()}
+
+  /* tositenumerointi */
+  const series=new Map();
+  for(const v of vs){const m=/^(.*?)(\d+)$/.exec(String(v.id));if(!m||String(v.id).includes('#'))continue;const k=m[1];if(!series.has(k))series.set(k,[]);series.get(k).push(+m[2])}
+  const gaps=[];
+  for(const [k,arr] of series){if(arr.length<20)continue;arr.sort((a,b)=>a-b);for(let i=1;i<arr.length;i++)if(arr[i]-arr[i-1]>1)gaps.push({series:k,from:arr[i-1]+1,to:arr[i]-1})}
+
+  /* kaksoiskirjaukset */
+  const dupG=new Map(),refG=new Map();
+  for(const v of vs){
+    if(v.partner){const k=norm(v.partner)+'|'+v.total.toFixed(2)+'|'+v.sig;if(!dupG.has(k))dupG.set(k,[]);dupG.get(k).push(v)}
+    if(v.ref){const k=norm(v.ref)+'|'+v.sig;if(!refG.has(k))refG.set(k,[]);refG.get(k).push(v)}
+  }
+  for(const arr of dupG.values()){if(arr.length<2)continue;for(let i=1;i<arr.length;i++){const a=arr[i-1],b=arr[i];if(b.date-a.date<=14){flag(a,'dup','vrt. tosite '+b.id);flag(b,'dup','vrt. tosite '+a.id)}}}
+  for(const arr of refG.values()){if(arr.length<2)continue;for(const a of arr)for(const b of arr)if(a!==b)flag(a,'dup','sama laskunumero '+a.ref+' myös tositteella '+b.id)}
+
+  for(const v of vs){
+    if(Math.abs(v.debit-v.credit)>0.005)flag(v,'bal','debet '+eur(v.debit)+' / kredit '+eur(v.credit)+', ero '+eur(v.debit-v.credit));
+    if(v.entryDate!=null&&v.entryDate>st.end&&v.date<=st.end)flag(v,'post','syötetty '+dnStr(v.entryDate)+', kohdistettu '+dnStr(v.date));
+    const mu=v.users.filter(u=>mgmt.includes(u.toLowerCase()));if(mu.length)flag(v,'mgmt',mu.join(', '));
+    if(!v.settle&&v.total<st.approval&&v.total>=st.approval*(1-st.nearPct/100))flag(v,'below',eur(v.total)+' (raja '+eur0(st.approval)+')');
+    if(st.pm&&v.total>=st.pm&&!v.routine&&!v.settle)flag(v,'key',eur(v.total)+' ≥ PM '+eur0(st.pm));
+    const revCred=v.lines.some(l=>l.credit>0&&l.account.startsWith(st.revPrefix));
+    if(revCred){const odd=v.lines.filter(l=>l.debit>0&&!l.account.startsWith(st.okPairPrefix)&&!l.account.startsWith(st.revPrefix));if(odd.length)flag(v,'revpair','debet '+[...new Set(odd.map(l=>l.account+(accName.get(l.account)?' '+accName.get(l.account):'')))].join(', '))}
+    const k1=dayKind(v.date),k2=v.entryDate!=null?dayKind(v.entryDate):null;
+    if(k1)flag(v,'wkend','tositepäivä '+dnStr(v.date)+' ('+k1+')');
+    if(k2&&v.entryDate!==v.date)flag(v,'wkend','syöttöpäivä '+dnStr(v.entryDate)+' ('+k2+')');
+    if(v.entryDate!=null){const lag=v.entryDate-v.date;if(lag>st.backDays)flag(v,'back','syötetty '+lag+' pv tositepäivän jälkeen');else if(-lag>st.futureDays)flag(v,'back','syötetty '+(-lag)+' pv ennen tositepäivää')}
+    const rare=v.accounts.filter(a=>accCount.get(a)<=st.rareAcc);if(rare.length)flag(v,'rareacc',rare.map(a=>a+(accName.get(a)?' '+accName.get(a):'')+' ('+accCount.get(a)+' tos.)').join(', '));
+    const ru=v.users.filter(u=>userCount.get(u)<=st.rareUser&&!mgmt.includes(u.toLowerCase()));if(ru.length)flag(v,'rareuser',ru.map(u=>u+' ('+userCount.get(u)+' tos.)').join(', '));
+    if(kwRe){for(const l of v.lines){const m=kwRe.exec(l.desc);if(m){flag(v,'kw','"'+m[2]+'": '+l.desc.slice(0,60));break}}}
+    if(v.dates.size>1)flag(v,'numdup',v.dates.size+' eri päivää');
+    if((v.date>st.end-st.pendDays&&v.date<=st.end)||(v.date>st.end&&v.date<=st.end+st.pendDays))flag(v,'pend',dnStr(v.date));
+    if(!v.settle&&v.total>=st.roundBase&&Math.abs(v.total%st.roundBase)<0.005)flag(v,'round',eur(v.total));
+    if(v.lines.every(l=>l.desc.length<3))flag(v,'nodesc','');
+    if(hot.size&&v.total>=st.trivial){const b=v.lines.find(l=>{const a=l.debit||l.credit;const t=fd(a);return t&&hot.has(t)&&a>=st.trivial});if(b)flag(v,'benford','alkunumerot '+fd(b.debit||b.credit)+' ('+eur(b.debit||b.credit)+')')}
+  }
+
+  /* tositteet */
+  const docRes=matchDocs(vs,st,flag);
+
+  for(const v of vs){v.score=v.flags.reduce((s,f)=>s+W(f.id),0);v.flags.sort((a,b)=>W(b.id)-W(a.id));v.level=v.score>=6?3:v.score>=3?2:v.score>=1?1:0}
+  const flagged=vs.filter(v=>v.score>0).sort((a,b)=>b.score-a.score||b.total-a.total);
+  const testHits={};for(const t of TESTS)testHits[t.id]={n:0,sum:0};
+  for(const v of vs)for(const f of v.flags){testHits[f.id].n++;testHits[f.id].sum+=v.total}
+  let deb=0,cred=0;for(const l of S.lines){deb+=l.debit;cred+=l.credit}
+  S.res={vs,byId:new Map(vs.map(v=>[v.id,v])),flagged,testHits,gaps,ben1,ben2,mad1,mad2,n2,hot,accCount,userCount,accName,deb:r2(deb),cred:r2(cred),docRes,skip,inPeriodCount:vs.filter(inPeriod).length};
+}
+function matchDocs(vs,st,flag){
+  const res={matched:0,probable:0,none:0,cut:0,amt:0};
+  const byAmt=new Map(),byRef=new Map();
+  const ak=x=>Math.abs(x).toFixed(2);
+  for(const v of vs){
+    const ks=new Set([ak(v.total),...v.lines.map(l=>ak(l.debit||l.credit))]);
+    for(const k of ks){if(!byAmt.has(k))byAmt.set(k,[]);byAmt.get(k).push(v)}
+    if(v.ref){const k=norm(v.ref);if(!byRef.has(k))byRef.set(k,[]);byRef.get(k).push(v)}
+  }
+  for(const v of vs)v.docs=[];
+  for(const d of S.docs){
+    d.match=null;d.alt=[];d.issue=[];d.score=0;
+    const cands=new Map();
+    const add=(v,pts,why)=>{const c=cands.get(v)||{v,pts:0,why:[]};c.pts+=pts;c.why.push(why);cands.set(v,c)};
+    if(d.invoiceNo){const k=norm(d.invoiceNo);for(const v of byRef.get(k)||[])add(v,3,'laskunro');for(const v of vs){if(!byRef.get(k)?.includes(v)&&v.desc&&norm(v.desc).includes(k)&&k.length>=4)add(v,3,'laskunro selitteessä')}}
+    if(d.total!=null)for(const v of byAmt.get(ak(d.total))||[])add(v,2,'summa');
+    for(const c of cands.values()){
+      const v=c.v;
+      if(d.date!=null&&Math.abs(v.date-d.date)<=10){c.pts+=1;c.why.push('päiväys')}
+      if(d.vendor&&v.partner){const a=norm(d.vendor).slice(0,8),b=norm(v.partner).slice(0,8);if(a&&b&&(a.includes(b)||b.includes(a))){c.pts+=1;c.why.push('vastapuoli')}}
+      if(v.accounts.some(a=>a.startsWith(st.bankPrefix)))c.pts-=1.5;
+    }
+    const list=[...cands.values()].sort((a,b)=>b.pts-a.pts||a.v.date-b.v.date);
+    if(list.length&&list[0].pts>=3){
+      const best=list[0];d.match=best.v;d.score=best.pts;d.why=best.why;best.v.docs.push(d);res.matched++;
+      d.alt=list.slice(1).filter(c=>c.pts>=best.pts-0.5&&c.why.includes('summa')).map(c=>c.v);
+      if(d.alt.length){d.issue.push('Sama summa myös tositteella '+d.alt.map(v=>v.id).join(', ')+'. Mahdollinen kaksoiskirjaus.');for(const v of d.alt)flag(v,'dup','tosite '+d.name+' on jo täsmätty tositteelle '+best.v.id)}
+      if(d.date!=null&&((d.date>st.end&&best.v.date<=st.end)||(d.date<=st.end&&d.date>=st.start&&best.v.date>st.end))){
+        d.issue.push('Laskun päiväys '+dnStr(d.date)+', kirjattu '+dnStr(best.v.date)+'.');flag(best.v,'cutoff','lasku '+dnStr(d.date)+' / kirjaus '+dnStr(best.v.date));res.cut++;
+      }
+      if(d.total!=null&&best.why.includes('laskunro')&&!best.why.includes('summa')){
+        d.issue.push('Laskun summa '+eur(d.total)+' ei vastaa kirjausta '+eur(best.v.total)+'.');flag(best.v,'docamt','lasku '+eur(d.total)+' / kirjaus '+eur(best.v.total));res.amt++;
+      }
+    }else if(list.length){d.probable=list[0].v;res.probable++;d.issue.push('Heikko vastaavuus ('+list[0].why.join(', ')+'). Tarkista käsin.')}
+    else{res.none++;if(d.date!=null&&d.date>=st.start&&d.date<=st.end)d.issue.push('Ei vastaavaa kirjausta. Laskun päiväys tilikaudella: mahdollinen kirjaamaton velka tai tulo.');else d.issue.push('Ei vastaavaa kirjausta.')}
+  }
+  return res;
+}
+
+/* ============ esimerkkiaineisto ============ */
+function makeDemo(){
+  const R=rng(20251231),pick=a=>a[Math.floor(R()*a.length)],logu=(lo,hi)=>Math.pow(10,Math.log10(lo)+R()*(Math.log10(hi)-Math.log10(lo)));
+  const A={'1100':'Koneet ja kalusto','1700':'Myyntisaamiset','1763':'Arvonlisäverosaamiset','1910':'Pankkitili Nordea','2871':'Ostovelat','2939':'Arvonlisäverovelka','2960':'Siirtovelat','3000':'Myynti 25,5 %','3100':'Palvelumyynti','4000':'Aine- ja tarvikeostot','5000':'Palkat','6130':'Eläkevakuutusmaksut','7300':'Toimitilavuokrat','7600':'Markkinointikulut','7650':'Edustuskulut','7680':'Matkakulut','7900':'Muut liikekulut'};
+  const V=[];
+  const wday=n=>{while(wd(n)===0||wd(n)===6||holidays(dnDate(n).getUTCFullYear()).has(n))n++;return n};
+  const L=(acc,deb,cred,desc)=>({account:acc,accountName:A[acc]||'',debit:r2(deb),credit:r2(cred),desc});
+  const push=(date,entryDate,user,source,partner,ref,lines)=>V.push({date,entryDate,user,source,partner,ref,lines});
+  const S0=dn(2025,1,1),E0=dn(2025,12,31);
+  const cust=['Pohjolan Kone Oy','Raahen Teräsrakenne Oy','Kemin Satamapalvelu Oy','Oulun Energia Oy','Lapin Kaivostekniikka Oy','Kajaanin Metalli Ky','Iin Puutyö Oy'];
+  const vend=[['Ahlsell Oy','4000'],['Würth Oy','4000'],['Bauhaus & Co Ky','4000'],['Mainostoimisto Kide Oy','7600'],['VR-Yhtymä Oyj','7680'],['Scandic Hotels Oy','7680'],['Telia Finland Oyj','7900'],['Elisa Oyj','7900'],['Lyreco Finland Oy','7900']];
+  let sn=1001,pn=5001;
+  for(let i=0;i<300;i++){
+    const d=wday(S0+Math.floor(R()*362));const net=r2(logu(250,22000));const vat=r2(net*0.255);const acc=R()<0.7?'3000':'3100';const c=pick(cust);const ref='M-'+(sn++);
+    push(d,wday(d+Math.floor(R()*3)),R()<0.75?'llaine':'mkirjanpitaja','Myyntireskontra',c,ref,[L('1700',net+vat,0,'Myyntilasku '+ref),L(acc,0,net,'Myyntilasku '+ref),L('2939',0,vat,'ALV 25,5 %')]);
+    const pd=wday(d+14+Math.floor(R()*20));if(pd<=E0&&R()<0.92)push(pd,pd,'system','Pankki',c,ref,[L('1910',net+vat,0,'Suoritus '+c),L('1700',0,net+vat,'Suoritus '+ref)]);
+  }
+  for(let i=0;i<190;i++){
+    const d=wday(S0+Math.floor(R()*360));const [vn,acc]=pick(vend);const net=r2(logu(90,16000));const vat=r2(net*0.255);const ref=String(Math.floor(100000+R()*899999));pn++;
+    push(d,wday(d+1+Math.floor(R()*5)),R()<0.8?'mkirjanpitaja':'llaine','Ostoreskontra',vn,ref,[L(acc,net,0,vn+' lasku '+ref),L('1763',vat,0,'ALV 25,5 %'),L('2871',0,net+vat,vn+' lasku '+ref)]);
+    const pd=wday(d+14+Math.floor(R()*14));if(pd<=E0)push(pd,pd,'system','Pankki',vn,ref,[L('2871',net+vat,0,'Maksu '+vn),L('1910',0,net+vat,'Maksu '+ref)]);
+  }
+  for(let m=1;m<=12;m++){
+    const sal=r2(38000+R()*4000),pen=r2(sal*0.1734);const pd=wday(dn(2025,m,15));
+    push(pd,pd,'system','Palkat','','',[L('5000',sal,0,'Palkat '+m+'/2025'),L('6130',pen,0,'TyEL '+m+'/2025'),L('1910',0,sal+pen,'Palkkojen maksu')]);
+    const rd=wday(dn(2025,m,2));push(rd,rd,'system','Pankki','Kiinteistö Oy Teknotie','',[L('7300',4200,0,'Vuokra '+m+'/2025 Teknotie 4'),L('1910',0,4200,'Vuokra')]);
+  }
+  /* istutetut poikkeamat */
+  push(dn(2025,12,31),dn(2026,1,20),'tj_virtanen','Muistio','','',[L('1700',49000,0,'Myynnin jaksotus, johdon arvio'),L('3100',0,49000,'Myynnin jaksotus, johdon arvio')]);
+  push(dn(2025,12,28),dn(2025,12,28),'tj_virtanen','Muistio','','',[L('7900',18500,0,'Oikaisu'),L('3000',0,18500,'Oikaisu')]);
+  push(dn(2025,6,21),dn(2025,6,21),'llaine','Muistio','','',[L('7600',3400,0,'väliaikainen siirto'),L('2960',0,3400,'väliaikainen siirto')]);
+  push(dn(2025,8,12),dn(2025,8,12),'mkirjanpitaja','Ostoreskontra','Ahlsell Oy','884120',[L('4000',9944.22,0,'Ahlsell Oy lasku 884120'),L('1763',2535.78,0,'ALV 25,5 %'),L('2871',0,12480,'Ahlsell Oy lasku 884120')]);
+  push(dn(2025,8,15),dn(2025,8,15),'mkirjanpitaja','Ostoreskontra','Ahlsell Oy','884120B',[L('4000',9944.22,0,'Ahlsell Oy lasku 884120B'),L('1763',2535.78,0,'ALV 25,5 %'),L('2871',0,12480,'Ahlsell Oy lasku 884120B')]);
+  push(dn(2025,10,8),dn(2025,10,8),'llaine','Ostoreskontra','Konsultointi Hannula Tmi','2025-117',[L('7900',7928.29,0,'Konsultointi'),L('1763',2021.71,0,'ALV 25,5 %'),L('2871',0,9950,'Konsultointi Hannula')]);
+  push(dn(2025,10,22),dn(2025,10,22),'llaine','Ostoreskontra','Konsultointi Hannula Tmi','2025-121',[L('7900',7888.45,0,'Konsultointi'),L('1763',2011.55,0,'ALV 25,5 %'),L('2871',0,9900,'Konsultointi Hannula')]);
+  push(dn(2025,11,14),dn(2025,11,14),'ekoskinen','Muistio','Ravintola Hella','',[L('7650',9800,0,'Asiakastilaisuus'),L('1910',0,9800,'')]);
+  push(dn(2025,3,14),dn(2025,6,2),'mkirjanpitaja','Muistio','','',[L('1100',22000,0,'Korjaus: kalustohankinta aktivoidaan'),L('7900',0,22000,'Korjaus: kalustohankinta aktivoidaan')]);
+  push(dn(2025,12,6),dn(2025,12,6),'llaine','Ostoreskontra','Würth Oy','771904',[L('4000',4630,0,'Würth Oy lasku 771904'),L('1763',1180.65,0,'ALV 25,5 %'),L('2871',0,5810.65,'Würth Oy lasku 771904')]);
+  push(dn(2025,9,30),dn(2025,9,30),'mkirjanpitaja','Muistio','','',[L('7680',1250,0,'Matkalaskut Q3'),L('2871',0,1205,'Matkalaskut Q3')]);
+  push(dn(2025,12,30),dn(2025,12,30),'mkirjanpitaja','Ostoreskontra','Mainostoimisto Kide Oy','K-4471',[L('7600',6000,0,'Mainostoimisto Kide Oy lasku K-4471'),L('1763',1530,0,'ALV 25,5 %'),L('2871',0,7530,'Mainostoimisto Kide Oy lasku K-4471')]);
+  push(dn(2025,11,20),dn(2025,11,21),'mkirjanpitaja','Ostoreskontra','Lyreco Finland Oy','LY-552190',[L('7900',4130.68,0,'Lyreco lasku LY-552190'),L('1763',1053.32,0,'ALV 25,5 %'),L('2871',0,5184,'Lyreco lasku LY-552190')]);
+
+  V.sort((a,b)=>a.date-b.date);
+  const lines=[];let no=1;
+  for(const v of V){
+    if(no===245)no=248;
+    const id=String(no++);
+    for(const l of v.lines)lines.push({voucher:id,date:v.date,entryDate:v.entryDate,account:l.account,accountName:l.accountName,debit:l.debit,credit:l.credit,desc:l.desc,user:v.user,source:v.source,partner:v.partner,ref:v.ref,file:'demo_paivakirja_2025.csv',row:lines.length+2});
+  }
+  /* poistetaan tasapainotus yhdeltä tositteelta: matkalaskut jo epätasapainossa */
+  const docs=[];
+  const inv=(vendor,yt,iban,no,date,due,net,buyer)=>{const vat=r2(net*0.255);return `${vendor}\nY-tunnus ${yt}\n\nLASKU\nLaskun numero: ${no}\nLaskun päivämäärä: ${dnStr(date)}\nEräpäivä: ${dnStr(due)}\nOstaja: ${buyer}\n\nTuote / palvelu            Veroton       ALV 25,5 %\nToimitus                   ${eur(net)}      ${eur(vat)}\n\nVeroton yhteensä           ${eur(net)}\nALV 25,5 % yhteensä        ${eur(vat)}\nMaksettava yhteensä        ${eur(net+vat)} EUR\n\nTilinumero ${iban}\nViitenumero 12345 67890`};
+  const buyer='Demo Oy, Teknotie 4, 90590 Oulu';
+  docs.push({name:'Ahlsell_884120.pdf',text:inv('Ahlsell Oy','0101210-5','FI21 1234 5600 0007 85','884120',dn(2025,8,11),dn(2025,9,10),9944.22,buyer)});
+  docs.push({name:'Wurth_771904.pdf',text:inv('Würth Oy','0114403-0','FI43 2001 1800 0123 45','771904',dn(2025,12,5),dn(2026,1,4),4630,buyer)});
+  docs.push({name:'Kide_K-4471.pdf',text:inv('Mainostoimisto Kide Oy','2876543-1','FI79 5000 0120 4567 89','K-4471',dn(2026,1,3),dn(2026,2,2),6000,buyer)});
+  docs.push({name:'Lyreco_LY-552190.pdf',text:inv('Lyreco Finland Oy','0765432-9','FI55 8000 1234 5678 90','LY-552190',dn(2025,11,19),dn(2025,12,19),4310.68,buyer)});
+  docs.push({name:'Sahkotili_Oulun_Energia_12-2025.pdf',text:inv('Oulun Energia Oy','0187690-1','FI02 5741 3620 0123 45','E-2025-90881',dn(2025,12,19),dn(2026,1,18),11240,buyer)});
+  docs.push({name:'Hannula_2025-117.xml',text:`<?xml version="1.0" encoding="UTF-8"?>\n<Finvoice Version="3.0"><SellerPartyDetails><SellerPartyIdentifier>3124567-8</SellerPartyIdentifier><SellerOrganisationName>Konsultointi Hannula Tmi</SellerOrganisationName></SellerPartyDetails><SellerInformationDetails><SellerAccountDetails><SellerAccountID IdentificationSchemeName="IBAN">FI88 1029 3000 1122 33</SellerAccountID></SellerAccountDetails></SellerInformationDetails><InvoiceDetails><InvoiceTypeCode>INV01</InvoiceTypeCode><InvoiceNumber>2025-117</InvoiceNumber><InvoiceDate Format="CCYYMMDD">20251007</InvoiceDate><InvoiceTotalVatIncludedAmount AmountCurrencyIdentifier="EUR">9950,00</InvoiceTotalVatIncludedAmount></InvoiceDetails><EpiDetails><EpiPartyDetails><EpiBeneficiaryPartyDetails><EpiAccountID IdentificationSchemeName="IBAN">FI8810293000112233</EpiAccountID></EpiBeneficiaryPartyDetails></EpiPartyDetails></EpiDetails></Finvoice>`});
+  const pur=V.filter(v=>v.source==='Ostoreskontra'&&v.ref&&/^\d{6}$/.test(v.ref)).slice(3,9);
+  for(const v of pur){const net=v.lines[0].debit;docs.push({name:v.partner.split(' ')[0]+'_'+v.ref+'.pdf',text:inv(v.partner,'0'+Math.floor(100000+R()*899999)+'-'+Math.floor(R()*10),'FI12 3456 7800 0000 '+Math.floor(10+R()*89),v.ref,v.date-1,v.date+29,net,buyer)})}
+  return {lines,docs:docs.map(d=>extractFields(d.text,d.name))};
+}
+
+/* ============ renderöinti ============ */
+function levelChip(l){return l===3?'<span class="lvl k3">Korkea</span>':l===2?'<span class="lvl k2">Kohonnut</span>':l===1?'<span class="lvl k1">Matala</span>':'<span class="muted small">–</span>'}
+const MARKS={bal:'Σ',post:'T+',mgmt:'J',below:'R−',dup:'×2',key:'PM',revpair:'LV',cutoff:'Jk',docamt:'≠',wkend:'Vk',back:'Vi',rareacc:'Ht',rareuser:'Hk',kw:'Rs',numdup:'N#',pend:'Tv',round:'00',nodesc:'∅',benford:'B'};
+function markOnly(f){const w=S.settings.weights[f.id];const c=w>=4?'crit':w>=3?'warn':'';return `<span class="tmo ${c}" title="${esc(TEST_BY[f.id].name+(f.text?': '+f.text:''))}">${MARKS[f.id]}</span>`}
+function flagChip(id){const t=TEST_BY[id];const w=S.settings.weights[id];const c=w>=4?'crit':w>=3?'warn':'';return `<span class="chip ${c}" title="${esc(t.why)}"><span class="tm">${MARKS[id]}</span>${esc(t.name)}</span>`}
+function rev(id){return S.review[id]||(S.review[id]={status:'Avoin',note:'',sample:false})}
+function saveReview(){try{localStorage.setItem(LS_KEY,JSON.stringify({key:dataKey(),review:S.review}))}catch(e){}}
+function loadReview(){try{const o=JSON.parse(localStorage.getItem(LS_KEY)||'null');if(o&&o.key===dataKey())S.review=o.review||{}}catch(e){}}
+function dataKey(){return S.lines.length+'|'+(S.lines[0]?.voucher||'')+'|'+(S.lines.at(-1)?.voucher||'')+'|'+S.files.map(f=>f.name).join(',')}
+
+function renderAll(){
+  if(!S.lines.length){
+    $('#dataset').innerHTML='<span style="color:#a9c3b1">Ei aineistoa ladattu</span>';$('#demoBanner').innerHTML=hero();
+    for(const id of ['#tiles','#testTable','#findTable','#detail','#docTiles','#docTable','#popTiles','#benford1','#benford2','#monthly','#weekday','#userTable','#gaps','#tbTable','#preview'])$(id).innerHTML='';
+    $('#detail').innerHTML='<div class="empty"><svg aria-hidden="true" viewBox="0 0 96 96"><use href="#i-loupe"/></svg>Syötä aineisto Aineisto-välilehdellä tai lataa esimerkkiaineisto.</div>';
+    $('#findTable').innerHTML='<tbody><tr><td class="empty">Ei aineistoa.</td></tr></tbody>';
+    renderFiles();renderSettings();renderPaper();counts();return;
+  }
+  analyze();
+  $('#dataset').innerHTML=(S.demo?'<span class="chip" style="background:var(--hl);color:var(--ink)">Esimerkkiaineisto</span>':'')+`<span style="color:#fff;font-weight:600">${esc(S.settings.client||'Tarkastuskohde')}</span><span style="color:#a9c3b1">Tilikausi ${dnStr(S.settings.start)}–${dnStr(S.settings.end)}</span>`;
+  $('#demoBanner').innerHTML=hero();
+  renderTiles();renderTestTable();renderFilters();renderFindings();renderDetail();renderFiles();renderPreview();renderDocs();renderAnalysis();renderSettings();renderPaper();counts();
+}
+function counts(){
+  $('#c-findings').textContent=S.res?S.res.flagged.length:'';
+  $('#c-data').textContent=S.lines.length?nf0.format(S.lines.length):'';
+  $('#c-docs').textContent=S.docs.length||'';
+}
+function renderTiles(){
+  const r=S.res,hi=r.flagged.filter(v=>v.level===3),mid=r.flagged.filter(v=>v.level===2);
+  const sumHi=hi.reduce((s,v)=>s+v.total,0);
+  const reviewed=r.flagged.filter(v=>S.review[v.id]&&S.review[v.id].status!=='Avoin').length;
+  $('#tiles').innerHTML=`
+   <div class="tile"><div class="k">Tositteita</div><div class="v">${nf0.format(r.vs.length)}</div><div class="small muted">${nf0.format(S.lines.length)} vientiä</div></div>
+   <div class="tile"><div class="k">Liputettuja tositteita</div><div class="v">${nf0.format(r.flagged.length)}</div><div class="small muted">${pct(r.flagged.length,r.vs.length)} populaatiosta</div></div>
+   <div class="tile crit"><div class="k">Korkea riski</div><div class="v">${hi.length}</div><div class="small muted">${eur0(sumHi)} €</div></div>
+   <div class="tile warn"><div class="k">Kohonnut riski</div><div class="v">${mid.length}</div></div>
+   <div class="tile"><div class="k">Käsitelty</div><div class="v">${reviewed} / ${hi.length+mid.length}</div><div class="small muted">korkea + kohonnut</div></div>
+   <div class="tile ${Math.abs(r.deb-r.cred)>0.005?'crit':''}"><div class="k">Debet − kredit</div><div class="v">${eur(r.deb-r.cred)}</div></div>`;
+}
+function renderTestTable(){
+  const r=S.res,st=S.settings;
+  const zero=TESTS.filter(t=>!st.off[t.id]&&!r.testHits[t.id].n&&!r.skip[t.id]).map(t=>t.name);
+  const rows=TESTS.filter(t=>!st.off[t.id]&&r.testHits[t.id].n).map(t=>{const h=r.testHits[t.id];return `<tr class="click ${S.fTest===t.id?'sel':''}" data-test="${t.id}"><td>${flagChip(t.id)}</td><td class="small muted">${esc(t.why)}</td><td class="num">${st.weights[t.id]}</td><td class="num">${h.n}</td><td class="num">${eur0(h.sum)}</td></tr>`}).join('');
+  $('#testTable').innerHTML=`<thead><tr><th>Testi</th><th>Peruste</th><th class="num">Paino</th><th class="num">Tositteita</th><th class="num">Summa €</th></tr></thead><tbody>${rows}${zero.length?`<tr><td colspan="5" class="small muted">Ei osumia: ${esc(zero.join(', '))}${Object.keys(r.skip).length?'<br>Ohitettu pienen aineiston takia: '+Object.entries(r.skip).map(([k,w])=>esc(TEST_BY[k].name+' ('+w+')')).join(', '):''}</td></tr>`:''}</tbody>`;
+}
+function renderFilters(){
+  const cur=S.fTest||'all';
+  $('#fTest').innerHTML='<option value="all">Kaikki testit</option>'+TESTS.filter(t=>S.res.testHits[t.id].n).map(t=>`<option value="${t.id}" ${cur===t.id?'selected':''}>${esc(t.name)} (${S.res.testHits[t.id].n})</option>`).join('');
+}
+function filtered(){
+  const q=($('#q').value||'').trim().toLowerCase(),lv=$('#fLevel').value,ft=S.fTest||'all';
+  let list=S.res.flagged;
+  if(lv==='sample')list=S.res.vs.filter(v=>S.review[v.id]?.sample).sort((a,b)=>b.score-a.score);
+  else if(lv==='3')list=list.filter(v=>v.level===3);
+  else if(lv==='2')list=list.filter(v=>v.level>=2);
+  else if(lv==='open')list=list.filter(v=>!S.review[v.id]||S.review[v.id].status==='Avoin');
+  if(ft!=='all')list=list.filter(v=>v.flags.some(f=>f.id===ft));
+  if(q)list=list.filter(v=>(v.id+' '+v.users.join(' ')+' '+v.partner+' '+v.ref+' '+v.lines.map(l=>l.account+' '+l.accountName+' '+l.desc).join(' ')).toLowerCase().includes(q));
+  return list;
+}
+function renderFindings(){
+  const list=filtered(),show=list.slice(0,S.showN);
+  if(!list.length){$('#findTable').innerHTML='<tbody><tr><td class="empty">Ei osumia valituilla suodattimilla.</td></tr></tbody>';$('#moreRow').innerHTML='';return}
+  $('#findTable').innerHTML=`<thead><tr><th>Tosite</th><th>Pvm</th><th class="num">Summa €</th><th class="num">Pist.</th><th>Taso</th><th>Tarkastusmerkit</th><th>Tosite</th><th>Tila</th></tr></thead><tbody>`+
+   show.map(v=>{const rv=S.review[v.id];const st=rv?.status||'Avoin';const sc=st==='Poikkeama'?'crit':st==='Selvitetty'?'ok':'';
+     return `<tr class="click k${v.level} ${S.sel===v.id?'sel':''}" data-v="${esc(v.id)}"><td class="mono">${esc(v.id)}${rv?.sample?' <span class="chip acc">otos</span>':''}</td><td class="num">${dnStr(v.date)}</td><td class="num">${eur(v.total)}</td><td class="num">${v.score}</td><td>${levelChip(v.level)}</td><td class="marks">${v.flags.map(f=>markOnly(f)).join('')}</td><td>${v.docs.length?'<span class="chip ok">löytyi</span>':'<span class="chip">puuttuu</span>'}</td><td><span class="chip ${sc}">${esc(st)}</span></td></tr>`}).join('')+'</tbody>';
+  $('#moreRow').innerHTML=list.length>S.showN?`<button class="btn" id="btnMore">Näytä lisää (${list.length-S.showN} jäljellä)</button>`:`<span class="small muted">${list.length} tositetta</span>`;
+}
+function renderDetail(){
+  const v=S.sel!=null&&S.res.byId.get(S.sel);
+  if(!v){$('#detail').innerHTML='<div class="empty"><svg aria-hidden="true" viewBox="0 0 96 96"><use href="#i-loupe"/></svg>Valitse tosite listalta nähdäksesi viennit, liputusten perusteet ja liitetyt tositteet.</div>';return}
+  const rv=rev(v.id);
+  const lines=v.lines.map(l=>`<tr><td class="mono">${esc(l.account)}</td><td>${esc(l.accountName)}</td><td class="num">${l.debit?eur(l.debit):''}</td><td class="num">${l.credit?eur(l.credit):''}</td><td>${esc(l.desc)}</td></tr>`).join('');
+  const docs=v.docs.length?v.docs.map(d=>`<li><b>${esc(d.name)}</b> <span class="small muted">· ${esc(d.type)} ${esc(d.invoiceNo)} · ${dnStr(d.date)} · ${d.total!=null?eur(d.total)+' €':''} · täsmäys: ${esc((d.why||[]).join(', '))}</span>${d.issue.length?`<div class="small" style="color:var(--warn)">${esc(d.issue.join(' '))}</div>`:''}<details><summary class="small">Näytä poimittu teksti</summary><pre class="doctext">${esc(d.text.slice(0,4000))}</pre></details></li>`).join(''):'<li class="small muted">Tositetta ei ole liitetty. Lisää tosite Tositteet-välilehdellä tai pyydä se asiakkaalta.</li>';
+  $('#detail').innerHTML=`
+   <div class="stack">
+    <div class="row" style="justify-content:space-between"><h2>Tosite <span class="mono">${esc(v.id)}</span></h2>${levelChip(v.level)}</div>
+    ${v.opening?'<div class="banner">Avausvienti: testit on ohitettu tasapainotarkistusta lukuun ottamatta. Täsmäytä avaavat saldot edellisen tilikauden tilinpäätökseen.</div>':''}
+    <div class="small muted">Tositepäivä ${dnStr(v.date)}${v.entryDate!=null?' · syötetty '+dnStr(v.entryDate):''} · ${esc(v.users.join(', ')||'käyttäjä ei tiedossa')}${v.source?' · '+esc(v.source):''}${v.partner?' · '+esc(v.partner):''}${v.ref?' · ref '+esc(v.ref):''}</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Tili</th><th>Nimi</th><th class="num">Debet</th><th class="num">Kredit</th><th>Selite</th></tr></thead><tbody>${lines}<tr class="total"><td></td><td>Yhteensä</td><td class="num"><b>${eur(v.debit)}</b></td><td class="num"><b>${eur(v.credit)}</b></td><td></td></tr></tbody></table></div>
+    <div><h3 style="margin-bottom:8px">Miksi liputettu · ${v.score} pistettä</h3><ul class="flags">${v.flags.map(f=>`<li class="${S.settings.weights[f.id]>=4?'f3':S.settings.weights[f.id]>=3?'f2':''}"><span class="w">+${S.settings.weights[f.id]}</span><b><span class="chip ${S.settings.weights[f.id]>=4?'crit':S.settings.weights[f.id]>=3?'warn':''}" style="margin-right:6px"><span class="tm">${MARKS[f.id]}</span>${esc(TEST_BY[f.id].name)}</span></b>${f.text?': '+esc(f.text):''}<div class="small muted">${esc(TEST_BY[f.id].why)}</div></li>`).join('')||'<li class="small muted">Ei liputuksia.</li>'}</ul></div>
+    <div><h3 style="margin-bottom:8px">Tositteet</h3><ul class="flags">${docs}</ul></div>
+    <div class="card" style="background:var(--bg)">
+      <h3>Tarkastajan merkinnät</h3>
+      <div class="form" style="margin-top:8px">
+        <label for="rvStatus">Tila<select id="rvStatus">${['Avoin','Selvitetty','Poikkeama','Ei vaadi toimenpiteitä'].map(s=>`<option ${rv.status===s?'selected':''}>${s}</option>`).join('')}</select></label>
+        <label class="toggle" for="rvSample" style="flex-direction:row;align-items:center;margin-top:18px"><input type="checkbox" id="rvSample" ${rv.sample?'checked':''}> Valittu otokseen</label>
+      </div>
+      <label for="rvNote" class="small muted" style="display:block;margin-top:10px">Huomio (mitä tarkastettiin, mihin perustuu, johtopäätös)</label>
+      <textarea class="inp" id="rvNote" rows="4" style="width:100%">${esc(rv.note)}</textarea>
+    </div>
+   </div>`;
+}
+function renderFiles(){
+  const fl=S.files.length?`<div class="tbl-wrap"><table><thead><tr><th>Tiedosto</th><th class="num">Vientejä</th><th class="num">Ohitettu</th><th></th></tr></thead><tbody>${S.files.map((f,i)=>`<tr><td>${esc(f.name)}</td><td class="num">${nf0.format(f.n)}</td><td class="num">${f.skipped}</td><td><button class="btn ghost small" data-rmfile="${i}">Poista</button></td></tr>`).join('')}</tbody></table></div><p class="small muted">Ohitetut rivit: summarivit, tyhjät rivit ja rivit, joilta puuttuu tili, päivämäärä tai summa.</p>`:'<p class="muted small">Ei ladattuja tiedostoja.</p>';
+  $('#fileList').innerHTML=fl;
+  renderMapper();
+}
+function renderMapper(){
+  const p=S.pending[0];
+  if(!p){$('#mapper').innerHTML='';return}
+  const header=p.rows[p.headerIdx]||[];
+  const opts=sel=>'<option value="">– ei käytössä –</option>'+header.map((h,i)=>`<option value="${i}" ${String(sel)===String(i)?'selected':''}>${esc(h||'sarake '+(i+1))}</option>`).join('');
+  const prev=p.rows.slice(p.headerIdx+1,p.headerIdx+6);
+  $('#mapper').innerHTML=`<div class="card stack" style="border-color:var(--accent)">
+   <div class="row" style="justify-content:space-between"><h2>Tarkista sarakkeet: ${esc(p.name)}</h2><span class="small muted">${nf0.format(p.rows.length-p.headerIdx-1)} riviä${S.pending.length>1?' · jonossa '+(S.pending.length-1)+' muuta tiedostoa':''}</span></div>
+   <label class="small" for="hdrRow">Otsikkorivi <input class="inp" id="hdrRow" type="number" min="1" max="${Math.min(30,p.rows.length)}" value="${p.headerIdx+1}" style="width:80px"></label>
+   <div class="mapgrid">${FIELDS.map(([k,label,req])=>`<label for="map-${k}">${esc(label)}${req?' <span class="req">*</span>':''}<select class="inp" id="map-${k}" data-map="${k}">${opts(p.map[k])}</select></label>`).join('')}</div>
+   <p class="small muted" style="margin:0">Pakolliset: tositepäivä, tili ja joko Debet/Kredit tai etumerkillinen summa. Ilman tositenumeroa jokainen rivi käsitellään omana tositteenaan, jolloin tasapaino- ja kaksoiskirjaustestit heikkenevät.</p>
+   <div class="tbl-wrap"><table><thead><tr>${header.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${prev.map(r=>`<tr>${header.map((_,i)=>`<td class="small">${esc(r[i] instanceof Date?r[i].toLocaleDateString('fi-FI'):r[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+   <div class="row"><button class="btn primary" id="btnMapOk">Ota käyttöön</button><button class="btn" id="btnMapCancel">Hylkää tiedosto</button><span class="small" id="mapErr" style="color:var(--crit)"></span></div>
+  </div>`;
+}
+function renderPreview(){
+  const ls=S.lines.slice(0,50);
+  $('#preview').innerHTML=ls.length?`<table><thead><tr><th>Tosite</th><th>Pvm</th><th>Syötetty</th><th>Tili</th><th>Nimi</th><th class="num">Debet</th><th class="num">Kredit</th><th>Selite</th><th>Käyttäjä</th><th>Lähde</th><th>Vastapuoli</th><th>Ref</th></tr></thead><tbody>${ls.map(l=>`<tr><td class="mono">${esc(l.voucher)}</td><td class="num">${dnStr(l.date)}</td><td class="num">${dnStr(l.entryDate)}</td><td class="mono">${esc(l.account)}</td><td>${esc(l.accountName)}</td><td class="num">${l.debit?eur(l.debit):''}</td><td class="num">${l.credit?eur(l.credit):''}</td><td>${esc(l.desc)}</td><td>${esc(l.user)}</td><td>${esc(l.source)}</td><td>${esc(l.partner)}</td><td>${esc(l.ref)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">Ei aineistoa.</div>';
+}
+function renderDocs(){
+  const r=S.res.docRes;
+  $('#docTiles').innerHTML=`<div class="tile"><div class="k">Tositteita</div><div class="v">${S.docs.length}</div></div><div class="tile"><div class="k">Täsmätty</div><div class="v">${r.matched}</div></div><div class="tile warn"><div class="k">Heikko / ei kirjausta</div><div class="v">${r.probable} / ${r.none}</div></div><div class="tile crit"><div class="k">Jaksotus / summaero</div><div class="v">${r.cut} / ${r.amt}</div></div>`;
+  if(!S.docs.length){$('#docTable').innerHTML='<tbody><tr><td class="empty">Ei tositteita. Pudota laskuja yllä olevaan kenttään.</td></tr></tbody>';return}
+  const ord=[...S.docs].sort((a,b)=>(b.issue.length?1:0)-(a.issue.length?1:0));
+  $('#docTable').innerHTML=`<thead><tr><th>Tiedosto</th><th>Tyyppi</th><th>Laskunro</th><th>Pvm</th><th class="num">Summa €</th><th>Toimittaja</th><th>Y-tunnus</th><th>Kirjaus</th><th>Havainto</th></tr></thead><tbody>${ord.map(d=>{
+    const m=d.match?`<a href="#" data-open="${esc(d.match.id)}" class="mono">${esc(d.match.id)}</a> <span class="chip ok">täsmätty</span>`:d.probable?`<a href="#" data-open="${esc(d.probable.id)}" class="mono">${esc(d.probable.id)}</a> <span class="chip warn">heikko</span>`:'<span class="chip crit">ei kirjausta</span>';
+    return `<tr><td>${esc(d.name)}${d.warn?`<div class="small" style="color:var(--warn)">${esc(d.warn)}</div>`:''}</td><td>${esc(d.type)}</td><td class="mono">${esc(d.invoiceNo)}</td><td class="num">${dnStr(d.date)}</td><td class="num">${d.total!=null?eur(d.total):''}</td><td>${esc(d.vendor)}</td><td class="mono">${esc(d.ytunnus)}</td><td>${m}</td><td class="small">${esc(d.issue.join(' '))}</td></tr>`}).join('')}</tbody>`;
+}
+function barChart(data,{w=560,h=220,exp=false,hi=()=>false,fmtY=v=>nf0.format(v),labelEvery=1}={}){
+  const pad={l:44,r:8,t:10,b:26},iw=w-pad.l-pad.r,ih=h-pad.t-pad.b;
+  const mx=Math.max(...data.map(d=>Math.max(d.v,exp?d.e||0:0)))||1;
+  const step=niceStep(mx/4),top=Math.ceil(mx/step)*step;
+  const bw=iw/data.length;
+  let g='';
+  for(let y=0;y<=top+1e-9;y+=step){const yy=pad.t+ih-ih*y/top;g+=`<line class="grid" x1="${pad.l}" x2="${w-pad.r}" y1="${yy}" y2="${yy}"/><text x="${pad.l-6}" y="${yy+4}" text-anchor="end">${fmtY(y)}</text>`}
+  let bars='',lbl='',line='';
+  data.forEach((d,i)=>{const bh=ih*d.v/top,x=pad.l+i*bw;bars+=`<rect class="bar ${hi(d)?'hi':''}" x="${x+bw*0.15}" y="${pad.t+ih-bh}" width="${bw*0.7}" height="${bh}"><title>${esc(d.l)}: ${esc(d.t||fmtY(d.v))}</title></rect>`;if(i%labelEvery===0)lbl+=`<text x="${x+bw/2}" y="${h-8}" text-anchor="middle">${esc(d.l)}</text>`});
+  if(exp)line=`<polyline class="exp" points="${data.map((d,i)=>`${pad.l+i*bw+bw/2},${pad.t+ih-ih*d.e/top}`).join(' ')}"/>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img">${g}${bars}${line}${lbl}</svg>`;
+}
+function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x||1)));const f=x/p;return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p}
+function renderAnalysis(){
+  const r=S.res,st=S.settings;
+  const tbal=Math.abs(r.deb-r.cred)>0.005;
+  const out=r.vs.filter(v=>v.date<st.start||v.date>st.end).length;
+  $('#popTiles').innerHTML=`<div class="tile"><div class="k">Vientejä</div><div class="v">${nf0.format(S.lines.length)}</div></div><div class="tile"><div class="k">Tositteita</div><div class="v">${nf0.format(r.vs.length)}</div><div class="small muted">${out} tilikauden ulkopuolella</div></div><div class="tile"><div class="k">Debet yhteensä</div><div class="v">${eur(r.deb)}</div></div><div class="tile"><div class="k">Kredit yhteensä</div><div class="v">${eur(r.cred)}</div></div><div class="tile ${tbal?'crit':''}"><div class="k">Erotus</div><div class="v">${eur(r.deb-r.cred)}</div></div><div class="tile"><div class="k">Aikaväli</div><div class="v" style="font-size:16px">${dnStr(Math.min(...r.vs.map(v=>v.date)))} – ${dnStr(Math.max(...r.vs.map(v=>v.date)))}</div></div>`;
+  const verdict=(m,t)=>m<=t[0]?['Hyvä yhdenmukaisuus','ok']:m<=t[1]?['Hyväksyttävä','ok']:m<=t[2]?['Rajatapaus','warn']:['Ei yhdenmukainen','crit'];
+  const v1=verdict(r.mad1,[0.006,0.012,0.015]),v2=verdict(r.mad2,[0.0012,0.0018,0.0022]);
+  $('#benford1').innerHTML=barChart(r.ben1.map(b=>({l:String(b.d),v:b.p*100,e:b.e*100,t:b.o+' kpl, '+(b.p*100).toFixed(1)+' % (odotus '+(b.e*100).toFixed(1)+' %)'})),{exp:true,fmtY:v=>v.toFixed(0)+' %'})+
+   `<div class="legend"><span><i></i>Havaittu osuus</span><span><i class="l"></i>Benfordin odotusarvo</span></div><p class="small" style="margin:8px 0 0">n = ${nf0.format(r.n2)} vientiä (≥ 10 €). MAD ${r.mad1.toFixed(4).replace('.',',')} <span class="chip ${v1[1]}">${v1[0]}</span> <span class="muted">(Nigrinin rajat 0,006 / 0,012 / 0,015)</span></p>`;
+  $('#benford2').innerHTML=barChart(r.ben2.map(b=>({l:String(b.d),v:b.p*100,e:b.e*100,d:b.d,t:b.o+' kpl, z = '+b.z.toFixed(2)})),{exp:true,hi:d=>r.hot.has(d.d),fmtY:v=>v.toFixed(1)+' %',labelEvery:10})+
+   `<div class="legend"><span><i></i>Havaittu osuus</span><span><i style="background:var(--crit)"></i>Yliedustettu, z &gt; 3,29</span><span><i class="l"></i>Odotusarvo</span></div><p class="small" style="margin:8px 0 0">MAD ${r.mad2.toFixed(4).replace('.',',')} <span class="chip ${v2[1]}">${v2[0]}</span> · Yliedustetut alkunumerot: ${r.hot.size?[...r.hot].sort((a,b)=>a-b).join(', '):'ei'}</p>`;
+  const months=new Map();for(const v of r.vs){const d=dnDate(v.date);const k=d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0');months.set(k,(months.get(k)||0)+1)}
+  const mk=[...months.keys()].sort();
+  $('#monthly').innerHTML=barChart(mk.map(k=>({l:k.slice(5)+'/'+k.slice(2,4),v:months.get(k),t:months.get(k)+' tositetta'})),{labelEvery:mk.length>14?2:1});
+  const wds=[0,0,0,0,0,0,0];for(const v of r.vs)wds[wd(v.entryDate??v.date)]++;
+  $('#weekday').innerHTML=barChart([1,2,3,4,5,6,0].map(i=>({l:WD[i],v:wds[i],t:wds[i]+' tositetta'})),{hi:d=>d.l==='la'||d.l==='su'})+'<p class="small muted" style="margin:6px 0 0">Syöttöpäivän mukaan, jos se on aineistossa. Viikonloput punaisella.</p>';
+  const um=new Map();for(const v of r.vs){for(const u of (v.users.length?v.users:['(ei tiedossa)'])){const o=um.get(u)||{n:0,sum:0,we:0,fl:0,hi:0};o.n++;o.sum+=v.total;if(dayKind(v.entryDate??v.date))o.we++;if(v.score)o.fl++;if(v.level===3)o.hi++;um.set(u,o)}}
+  $('#userTable').innerHTML=`<thead><tr><th>Käyttäjä</th><th class="num">Tositteita</th><th class="num">Summa €</th><th class="num">Vkl/pyhä</th><th class="num">Liputettu</th><th class="num">Korkea</th></tr></thead><tbody>${[...um.entries()].sort((a,b)=>b[1].n-a[1].n).map(([u,o])=>`<tr><td>${esc(u)}</td><td class="num">${o.n}</td><td class="num">${eur0(o.sum)}</td><td class="num">${o.we}</td><td class="num">${o.fl}</td><td class="num">${o.hi}</td></tr>`).join('')}</tbody>`;
+  $('#gaps').innerHTML=r.gaps.length?`<p class="small muted" style="margin:6px 0">Puuttuvat numerot sarjoittain. Selvitä, onko tositteita poistettu tai jätetty pois aineistosta.</p><div class="tbl-wrap"><table><thead><tr><th>Sarja</th><th>Puuttuu</th><th class="num">Kpl</th></tr></thead><tbody>${r.gaps.slice(0,100).map(g=>`<tr><td class="mono">${esc(g.series||'(numeerinen)')}</td><td class="mono">${g.from===g.to?g.from:g.from+'–'+g.to}</td><td class="num">${g.to-g.from+1}</td></tr>`).join('')}</tbody></table></div>`:'<p class="small muted">Ei aukkoja numeroinnissa (tarkistetaan sarjoista, joissa on vähintään 20 tositetta).</p>';
+  const tb=new Map();for(const l of S.lines){const o=tb.get(l.account)||{d:0,c:0,n:0};o.d+=l.debit;o.c+=l.credit;o.n++;tb.set(l.account,o)}
+  S.res.tb=[...tb.entries()].sort((a,b)=>a[0].localeCompare(b[0],'fi',{numeric:true}));
+  $('#tbTable').innerHTML=`<thead><tr><th>Tili</th><th>Nimi</th><th class="num">Vientejä</th><th class="num">Debet</th><th class="num">Kredit</th><th class="num">Saldo (D−K)</th></tr></thead><tbody>${S.res.tb.map(([a,o])=>`<tr><td class="mono">${esc(a)}</td><td>${esc(r.accName.get(a)||'')}</td><td class="num">${o.n}</td><td class="num">${eur(o.d)}</td><td class="num">${eur(o.c)}</td><td class="num">${eur(o.d-o.c)}</td></tr>`).join('')}</tbody>`;
+}
+function renderSettings(){
+  const st=S.settings;if(!st)return;
+  const f=(id,label,val,type='text',hint='')=>`<label for="s-${id}">${label}<input id="s-${id}" type="${type}" value="${esc(val)}" ${type==='number'?'step="any"':''}>${hint?`<span class="hint">${hint}</span>`:''}</label>`;
+  $('#formMain').innerHTML=
+    f('client','Tarkastuskohde',st.client)+f('start','Tilikausi alkaa',dnISO(st.start),'date')+f('end','Tilikausi päättyy',dnISO(st.end),'date')+
+    f('pm','Toimeksiannon olennaisuus PM (€)',st.pm,'number',st.pmBasis==='rev'?`Oletus: 1 % liikevaihdosta (${eur0(st.revenue)} €${st.revAnn?', vuositasolle korotettu':''}) × 75 %. Korvaa toimeksiannon omalla PM:llä.`:st.pmBasis==='deb'?'Liikevaihtotilejä ei löytynyt. Oletus on karkea (0,25 % debet-summasta × 75 %). Aseta oma arvo.':'')+
+    f('trivial','Selvästi vähäpätöinen raja (€)',st.trivial,'number','Oletus 5 % PM:stä. Käytetään Benford-liputuksessa.')+
+    f('approval','Hyväksymisraja (€)',st.approval,'number','Esim. toisen hyväksyjän raja ostolaskuille.')+
+    f('nearPct','Marginaali rajan alla (%)',st.nearPct,'number')+f('roundBase','Tasasumman jakaja (€)',st.roundBase,'number')+
+    f('pendDays','Tilikauden vaihde (pv)',st.pendDays,'number','Päivät ennen ja jälkeen tilikauden päättymisen.')+
+    f('backDays','Viivästetty kirjaus, raja (pv)',st.backDays,'number')+f('futureDays','Etupainotteinen kirjaus, raja (pv)',st.futureDays,'number')+
+    f('rareAcc','Harvinainen tili: enintään tositteita',st.rareAcc,'number')+f('rareUser','Harvinainen käyttäjä: enintään tositteita',st.rareUser,'number')+
+    f('revPrefix','Liikevaihtotilien alku',st.revPrefix,'text','Suomalaisessa tilikartassa 3.')+f('okPairPrefix','Liikevaihdon hyväksytyt vastatilit, alku',st.okPairPrefix,'text','Saamiset ja rahat, tavallisesti 1.')+
+    f('bankPrefix','Pankkitilien alku',st.bankPrefix,'text','Laskun suoritukset (pankkitili + sama viite) ohitetaan raja-, tasasumma- ja PM-testeissä.')+
+    `<label for="s-routine" style="grid-column:1/-1">Rutiinilähteet ja järjestelmäkäyttäjät (PM-testi koskee vain muita kirjauksia)<input id="s-routine" value="${esc(st.routine)}"></label>`+
+    `<label for="s-mgmtUsers" style="grid-column:1/-1">Johdon ja pääkäyttäjien tunnukset (pilkulla erotettuna)<input id="s-mgmtUsers" value="${esc(st.mgmtUsers)}"></label>`+
+    `<label for="s-keywords" style="grid-column:1/-1">Riskisanat selitteessä (pilkulla erotettuna, sanan alkuosa riittää)<textarea id="s-keywords" rows="2">${esc(st.keywords)}</textarea></label>`;
+  $('#weightTable').innerHTML=`<thead><tr><th>Käytössä</th><th>Testi</th><th>Peruste</th><th class="num">Paino</th></tr></thead><tbody>${TESTS.map(t=>`<tr><td><input type="checkbox" id="on-${t.id}" ${st.off[t.id]?'':'checked'} aria-label="${esc(t.name)} käytössä"></td><td><b>${esc(t.name)}</b></td><td class="small muted">${esc(t.why)}</td><td class="num"><input class="inp" type="number" min="0" max="10" id="w-${t.id}" value="${st.weights[t.id]}" style="width:64px;text-align:right" aria-label="${esc(t.name)} paino"></td></tr>`).join('')}</tbody>`;
+}
+function readSettings(){
+  const st=S.settings,g=id=>$('#s-'+id).value;
+  st.client=g('client');st.start=isoDn(g('start'))??st.start;st.end=isoDn(g('end'))??st.end;
+  for(const k of ['pm','trivial','approval','nearPct','roundBase','pendDays','backDays','futureDays','rareAcc','rareUser'])st[k]=parseNum(g(k))??st[k];
+  for(const k of ['revPrefix','okPairPrefix','bankPrefix','mgmtUsers','keywords','routine'])st[k]=g(k).trim();
+  for(const t of TESTS){st.off[t.id]=!$('#on-'+t.id).checked;st.weights[t.id]=parseNum($('#w-'+t.id).value)??t.w}
+}
+function renderPaper(){
+  if(!S.res||!S.lines.length){$('#paper').value='Ei aineistoa.';return}
+  const r=S.res,st=S.settings,L=[];
+  const today=new Date();
+  L.push('JOURNAL ENTRY TESTING – TYÖPAPERI (luonnos)');
+  L.push('Kohde: '+(st.client||'[täydennä]')+'    Tilikausi: '+dnStr(st.start)+'–'+dnStr(st.end));
+  L.push('Laadittu: '+today.toLocaleDateString('fi-FI')+'    Laatija: [täydennä]    Tarkastanut: [täydennä]');
+  L.push('');
+  L.push('1. TAVOITE');
+  L.push('Vastata johdon kontrollien ohittamisen riskiin (ISA 240.32–33) testaamalla pääkirjaan tehtyjä kirjauksia ja tilinpäätöksen laatimisvaiheen oikaisuja.');
+  L.push('');
+  L.push('2. AINEISTO JA SEN TÄYDELLISYYS');
+  L.push('Lähdetiedostot: '+(S.demo?'esimerkkiaineisto (keksitty Demo Oy)':S.files.map(f=>f.name+' ('+f.n+' vientiä)').join(', ')));
+  L.push('Vientejä '+nf0.format(S.lines.length)+', tositteita '+nf0.format(r.vs.length)+'. Debet '+eur(r.deb)+' €, kredit '+eur(r.cred)+' €, erotus '+eur(r.deb-r.cred)+' €.');
+  L.push('Täsmäytys pääkirjaan / tasekirjaan: [täydennä – vertaa Analyysit-välilehden tilisaldoja].');
+  if(r.gaps.length)L.push('Tositenumeroinnissa '+r.gaps.length+' aukkoa, yhteensä '+r.gaps.reduce((s,g)=>s+g.to-g.from+1,0)+' numeroa: '+r.gaps.slice(0,10).map(g=>(g.series||'')+(g.from===g.to?g.from:g.from+'–'+g.to)).join(', ')+(r.gaps.length>10?' …':'')+'.');
+  L.push('');
+  L.push('3. PARAMETRIT');
+  L.push('PM '+eur0(st.pm)+' €, selvästi vähäpätöinen '+eur0(st.trivial)+' €, hyväksymisraja '+eur0(st.approval)+' € (marginaali '+st.nearPct+' %), tasasumma '+eur0(st.roundBase)+' €, tilikauden vaihde ±'+st.pendDays+' pv, viivästysraja '+st.backDays+' pv.');
+  L.push('Johdon tunnukset: '+st.mgmtUsers+'.');
+  L.push('');
+  L.push('4. TESTIT JA OSUMAT');
+  for(const t of TESTS){if(st.off[t.id])continue;const h=r.testHits[t.id];L.push('  '+(t.name+' ').padEnd(48,'.')+' '+String(h.n).padStart(4)+' tos.  '+eur0(h.sum).padStart(12)+' €   (paino '+st.weights[t.id]+')')}
+  L.push('Benford 1. numero: MAD '+r.mad1.toFixed(4)+'; 2 ensimmäistä: MAD '+r.mad2.toFixed(4)+(r.hot.size?'; yliedustetut: '+[...r.hot].join(', '):'')+'.');
+  L.push('');
+  const hi=r.flagged.filter(v=>v.level===3),mid=r.flagged.filter(v=>v.level===2);
+  L.push('5. RISKILUOKITUS');
+  L.push('Korkea '+hi.length+' tos. ('+eur0(hi.reduce((s,v)=>s+v.total,0))+' €), kohonnut '+mid.length+' tos., matala '+r.flagged.filter(v=>v.level===1).length+' tos.');
+  if(S.docs.length)L.push('Tositteita syötetty '+S.docs.length+': täsmätty '+r.docRes.matched+', heikko '+r.docRes.probable+', ei kirjausta '+r.docRes.none+', jaksotusero '+r.docRes.cut+', summaero '+r.docRes.amt+'.');
+  if(S.randomSeed!=null)L.push('Satunnaisotos (ennakoimattomuus, ISA 240.30 c) arvottu siemenluvulla '+S.randomSeed+'.');
+  L.push('');
+  L.push('6. TARKASTETUT TOSITTEET');
+  const sel=r.vs.filter(v=>v.level===3||S.review[v.id]?.sample||(S.review[v.id]&&(S.review[v.id].status!=='Avoin'||S.review[v.id].note))).sort((a,b)=>b.score-a.score);
+  for(const v of sel){
+    const rv=S.review[v.id]||{status:'Avoin',note:''};
+    L.push('- Tosite '+v.id+'  '+dnStr(v.date)+'  '+eur(v.total)+' €  pisteet '+v.score+'  ['+rv.status+']'+(rv.sample?' [otos]':''));
+    L.push('    Perusteet: '+v.flags.map(f=>TEST_BY[f.id].name).join(', '));
+    L.push('    Tosite: '+(v.docs.length?v.docs.map(d=>d.name).join(', '):'ei liitetty'));
+    L.push('    Huomio: '+(rv.note||'[täydennä]'));
+  }
+  L.push('');
+  L.push('7. JOHTOPÄÄTÖS');
+  const dev=r.vs.filter(v=>S.review[v.id]?.status==='Poikkeama').length;
+  L.push(dev?dev+' tositteella havaittiin poikkeama. [Arvioi vaikutus ja kirjaa yhteenveto virheistä (SAD).]':'[Täydennä johtopäätös, kun tarkastetut tositteet on käyty läpi.]');
+  $('#paper').value=L.join('\n');
+}
+
+const HERO_SVG=`<svg class="illu" viewBox="0 0 340 250" role="img" aria-label="Kuvitus: pääkirjasivu, jonka yhtä riviä tarkastellaan suurennuslasilla">
+ <g transform="rotate(-4 150 125)">
+  <rect x="22" y="22" width="248" height="208" rx="3" fill="#e2ede2" stroke="#9fb9a3" stroke-width="1.5" transform="translate(8 6)"/>
+  <rect x="22" y="22" width="248" height="208" rx="3" fill="#fffffd" stroke="#9fb9a3" stroke-width="1.5"/>
+  <rect x="22" y="22" width="248" height="24" fill="#e2ede2"/>
+  <text x="58" y="38" font-family="JetBrains Mono,monospace" font-size="9" fill="#1d5e40" font-weight="600">PVM      TILI   SELITE         SUMMA</text>
+  <path d="M50 22v208M54 22v208" stroke="#c0321c" stroke-width=".9" opacity=".6"/>
+  <path d="M190 46v184M232 46v184" stroke="#cddbc9" stroke-width="1"/>
+  <rect x="55" y="118" width="214" height="18" fill="#ffe45c" opacity=".75"/>
+  <g font-family="JetBrains Mono,monospace" font-size="8.5" fill="#56685c">
+   <text x="58" y="60">02.12  2871  Würth Oy</text><text x="262" y="60" text-anchor="end">5 810,65</text>
+   <text x="58" y="78">05.12  1910  Suoritus</text><text x="262" y="78" text-anchor="end">2 344,10</text>
+   <text x="58" y="96">15.12  5000  Palkat 12</text><text x="262" y="96" text-anchor="end">41 220,00</text>
+   <text x="58" y="114">19.12  3000  Myynti</text><text x="262" y="114" text-anchor="end">6 118,40</text>
+   <text x="58" y="131" fill="#11261c" font-weight="600">31.12  1700  Jaksotus</text><text x="262" y="131" text-anchor="end" fill="#11261c" font-weight="600">49 000,00</text>
+   <text x="58" y="150">30.12  7600  Kide Oy</text><text x="262" y="150" text-anchor="end">7 530,00</text>
+   <text x="58" y="168">30.12  2939  ALV</text><text x="262" y="168" text-anchor="end">1 530,00</text>
+   <text x="58" y="186">31.12  9990  Siirrot</text><text x="262" y="186" text-anchor="end">12 000,00</text>
+  </g>
+  <path d="M55 202h214" stroke="#11261c" stroke-width="1"/><path d="M55 205h214" stroke="#11261c" stroke-width="1"/>
+  <g stroke="#c0321c" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M32 56l4 4 7-8"/><path d="M32 74l4 4 7-8"/><path d="M32 92l4 4 7-8"/><path d="M32 110l4 4 7-8"/><path d="M32 146l4 4 7-8"/>
+   <path d="M30 124l11 11M41 124l-11 11" stroke-width="2.6"/>
+  </g>
+  <text x="30" y="219" font-family="JetBrains Mono,monospace" font-size="13" fill="#c0321c" font-weight="600">Σ</text>
+ </g>
+ <g transform="translate(250 150)">
+  <circle r="54" fill="#fffffd" opacity=".93"/>
+  <rect x="-54" y="-14" width="108" height="30" fill="#ffe45c" opacity=".8"/>
+  <text x="0" y="8" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="19" font-weight="600" fill="#11261c">49 000,00</text>
+  <text x="0" y="-24" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#c0321c" font-weight="600">syöt. 20.1.</text>
+  <text x="0" y="34" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#c0321c" font-weight="600">johto · PM</text>
+  <circle r="54" fill="none" stroke="#11261c" stroke-width="7"/>
+  <circle r="47" fill="none" stroke="#fff" stroke-width="2" opacity=".7"/>
+  <path d="M38 38l36 36" stroke="#11261c" stroke-width="14" stroke-linecap="round"/>
+  <path d="M42 42l28 28" stroke="#1d5e40" stroke-width="8" stroke-linecap="round"/>
+ </g>
+</svg>`;
+function hero(){
+  const r=S.res,n=r?r.flagged.filter(v=>v.level===3).length:0;
+  const lead=S.lines.length?`${nf0.format(r.vs.length)} tositteesta ${nf0.format(r.flagged.length)} jäi seulaan, joista ${n} korkealla riskillä. Aloita listan kärjestä.`:'Syötä päiväkirja ja tositteet, niin työkalu ajaa testit ja nostaa tarkastettavat kirjaukset riskijärjestyksessä esiin.';
+  return `<div class="hero"><div>
+    <div class="eyebrow">Journal entry testing · ISA 240 · ISA 330</div>
+    <h1>Seulo päiväkirjasta ne viennit, jotka kannattaa tarkastaa</h1>
+    <p>${lead}${S.demo?' Nyt näkyvissä on keksityn Demo Oy:n tilikausi 2025. Siihen on istutettu tyypillisiä poikkeamia, kuten johdon jälkikäteen tekemä jaksotus, kaksoiskirjaus ja kirjaamaton lasku.':''}</p>
+    <div class="row">${S.demo||!S.lines.length?'<button class="btn primary" data-go="data">Syötä oma aineisto</button>':'<button class="btn primary" data-go="docs">Lisää tositteita</button>'}<button class="btn" data-go="paper">Avaa työpaperi</button>${S.lines.length?'':'<button class="btn ghost" id="btnDemo2">Lataa esimerkkiaineisto</button>'}</div>
+  </div>${HERO_SVG}</div>`;
+}
+function download(name,text,type='text/csv'){
+  try{const blob=new Blob(['﻿'+text],{type:type+';charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast('Ladattu: '+name)}
+  catch(e){copyText(text,name)}
+}
+const slug=()=>norm(S.settings.client||'kohde')+'_'+dnISO(S.settings.end);
+function findingsCSV(){
+  const list=filtered();const h=['Tosite','Tositepäivä','Syöttöpäivä','Summa','Pisteet','Taso','Syyt','Käyttäjät','Tosite liitetty','Tila','Otos','Huomio'];
+  return [h.join(';'),...list.map(v=>{const rv=S.review[v.id]||{};return [v.id,dnStr(v.date),dnStr(v.entryDate),csvNum(v.total),v.score,['','Matala','Kohonnut','Korkea'][v.level],v.flags.map(f=>TEST_BY[f.id].name+(f.text?' ('+f.text+')':'')).join(' | '),v.users.join(', '),v.docs.length?'kyllä':'ei',rv.status||'Avoin',rv.sample?'kyllä':'',rv.note||''].map(csvCell).join(';')})].join('\n');
+}
+const tbCSV=()=>['Tili;Nimi;Vientejä;Debet;Kredit;Saldo',...S.res.tb.map(([a,o])=>[a,S.res.accName.get(a)||'',o.n,csvNum(o.d),csvNum(o.c),csvNum(o.d-o.c)].map(csvCell).join(';'))].join('\n');
+function requestTxt(){const list=S.res.flagged.filter(v=>v.level>=2&&!v.docs.length);return {n:list.length,txt:['Tositepyyntö – '+(S.settings.client||'tarkastuskohde')+', tilikausi '+dnStr(S.settings.start)+'–'+dnStr(S.settings.end),'Pyydämme toimittamaan alla luetelluista kirjauksista alkuperäisen tositteen ja mahdollisen hyväksyntämerkinnän.','',...list.map(v=>'- Tosite '+v.id+', '+dnStr(v.date)+', '+eur(v.total)+' €'+(v.partner?', '+v.partner:'')+(v.desc?', "'+v.desc+'"':''))].join('\n')}}
+
+/* ============ tapahtumat ============ */
+function go(view){document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.v===view));document.querySelectorAll('section.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+view));window.scrollTo(0,0)}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v)});
+document.addEventListener('click',e=>{
+  if(e.target.id==='btnDemo2'){loadDemo();return}
+  const g=e.target.closest('[data-go]');if(g){go(g.dataset.go);return}
+  const o=e.target.closest('[data-open]');if(o){e.preventDefault();S.sel=o.dataset.open;$('#fLevel').value='all';S.fTest='all';renderFilters();renderFindings();renderDetail();go('findings');return}
+  const rm=e.target.closest('[data-rmfile]');if(rm){const f=S.files[+rm.dataset.rmfile];S.lines=S.lines.filter(l=>l.file!==f.name);S.files.splice(+rm.dataset.rmfile,1);if(!S.files.length)S.demo=false;resetSettings();renderAll();return}
+});
+$('#testTable').addEventListener('click',e=>{const tr=e.target.closest('tr[data-test]');if(!tr)return;S.fTest=S.fTest===tr.dataset.test?'all':tr.dataset.test;S.showN=60;renderTestTable();renderFilters();renderFindings()});
+$('#findTable').addEventListener('click',e=>{const tr=e.target.closest('tr[data-v]');if(!tr)return;S.sel=tr.dataset.v;renderFindings();renderDetail();if(window.innerWidth<=1000)$('#detail').scrollIntoView({behavior:'smooth'})});
+$('#moreRow').addEventListener('click',e=>{if(e.target.id==='btnMore'){S.showN+=100;renderFindings()}});
+$('#q').addEventListener('input',()=>{S.showN=60;renderFindings()});
+$('#fLevel').addEventListener('change',()=>{S.showN=60;renderFindings()});
+$('#fTest').addEventListener('change',e=>{S.fTest=e.target.value;S.showN=60;renderTestTable();renderFindings()});
+$('#detail').addEventListener('change',e=>{if(!S.sel)return;const rv=rev(S.sel);if(e.target.id==='rvStatus')rv.status=e.target.value;if(e.target.id==='rvSample')rv.sample=e.target.checked;saveReview();renderFindings();renderTiles();renderPaper()});
+$('#detail').addEventListener('input',e=>{if(e.target.id==='rvNote'&&S.sel){rev(S.sel).note=e.target.value;saveReview();clearTimeout(S._pt);S._pt=setTimeout(renderPaper,400)}});
+$('#btnRandom').addEventListener('click',()=>{
+  const seed=Math.floor(Math.random()*90000)+10000;S.randomSeed=seed;const R=rng(seed);
+  const pool=S.res.vs.filter(v=>v.score===0&&v.total>=S.settings.trivial&&!S.review[v.id]?.sample);
+  const n=Math.min(5,pool.length);for(let i=0;i<n;i++){const j=Math.floor(R()*pool.length);rev(pool[j].id).sample=true;pool.splice(j,1)}
+  saveReview();$('#fLevel').value='sample';renderFindings();renderPaper();toast(n+' liputtamatonta tositetta lisätty otokseen (siemen '+seed+')');
+});
+$('#btnCopyFindings').addEventListener('click',()=>copyText(findingsCSV(),filtered().length+' tositteen lista'));
+$('#btnDlFindings').addEventListener('click',()=>download('kirjausseula_loydokset_'+slug()+'.csv',findingsCSV()));
+$('#btnCopyTB').addEventListener('click',()=>copyText(tbCSV(),'Tilisaldot'));
+$('#btnDlTB').addEventListener('click',()=>download('kirjausseula_tilisaldot_'+slug()+'.csv',tbCSV()));
+$('#btnDlPaper').addEventListener('click',()=>download('kirjausseula_tyopaperi_'+slug()+'.txt',$('#paper').value,'text/plain'));
+$('#btnDlRequest').addEventListener('click',()=>download('tositepyynto_'+slug()+'.txt',requestTxt().txt,'text/plain'));
+$('#btnCopyPaper').addEventListener('click',()=>copyText($('#paper').value,'Työpaperi'));
+$('#btnCopyRequest').addEventListener('click',()=>{const r=requestTxt();copyText(r.txt,'Tositepyyntölista ('+r.n+' kpl)')});
+$('#btnApply').addEventListener('click',()=>{readSettings();renderAll();$('#applyNote').textContent='Testit ajettu '+new Date().toLocaleTimeString('fi-FI')+'.';toast('Testit ajettu uudelleen')});
+$('#btnDemo').addEventListener('click',()=>{loadDemo();go('findings')});
+$('#btnClear').addEventListener('click',()=>{S.lines=[];S.files=[];S.docs=[];S.demo=false;S.sel=null;S.review={};S.pending=[];S.period=null;S.settings=defaultSettings();renderAll();toast('Aineisto tyhjennetty')});
+
+function setupDrop(zoneId,inputId,handler){
+  const z=$(zoneId),i=$(inputId);
+  i.addEventListener('change',()=>{handler([...i.files]);i.value=''});
+  ['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.add('over')}));
+  ['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.remove('over')}));
+  z.addEventListener('drop',e=>handler([...e.dataTransfer.files]));
+}
+async function onJournalFiles(files){
+  if(S.demo){S.lines=[];S.files=[];S.docs=[];S.demo=false;S.review={};S.sel=null;S.period=null}
+  for(const f of files){
+    try{const rows=await readJournalFile(f);if(!rows.length)throw new Error('Tiedosto on tyhjä');const headerIdx=guessHeader(rows);S.pending.push({name:f.name,rows,headerIdx,map:guessMap(rows[headerIdx]),period:rows.period||null})}
+    catch(e){toast(f.name+': '+e.message)}
+  }
+  renderAll();
+}
+async function onDocFiles(files){
+  $('#docStatus').textContent='Luetaan '+files.length+' tiedostoa…';
+  let ok=0;
+  for(const f of files){try{S.docs.push(await readDocFile(f));ok++}catch(e){toast(f.name+': '+e.message)}}
+  $('#docStatus').textContent=ok+' tiedostoa luettu.';
+  if(S.lines.length)renderAll();else{counts();toast('Tositteet luettu. Syötä myös kirjanpitoaineisto täsmäytystä varten.')}
+}
+setupDrop('#dropJ','#fileJ',onJournalFiles);
+setupDrop('#dropD','#fileD',onDocFiles);
+$('#mapper').addEventListener('change',e=>{
+  const p=S.pending[0];if(!p)return;
+  if(e.target.id==='hdrRow'){p.headerIdx=Math.max(0,Math.min(p.rows.length-1,(+e.target.value||1)-1));p.map=guessMap(p.rows[p.headerIdx]);renderMapper();return}
+  const k=e.target.dataset.map;if(k)p.map[k]=e.target.value===''?null:+e.target.value;
+});
+$('#mapper').addEventListener('click',e=>{
+  const p=S.pending[0];if(!p)return;
+  if(e.target.id==='btnMapCancel'){S.pending.shift();renderAll();return}
+  if(e.target.id==='btnMapOk'){
+    const m=p.map,has=k=>m[k]!=null&&m[k]!=='';
+    if(!has('date')||!has('account')||!(has('amount')||has('debit')||has('credit'))){$('#mapErr').textContent='Valitse vähintään tositepäivä, tili ja summasarake(t).';return}
+    const {out,skipped}=buildLines(p);
+    if(!out.length){$('#mapErr').textContent='Yhtään vientiä ei saatu luettua. Tarkista otsikkorivi ja sarakkeet.';return}
+    const badDate=out.filter(l=>{const y=dnDate(l.date).getUTCFullYear();return y<1990||y>2100}).length;
+    if(badDate>out.length*0.1){$('#mapErr').textContent=badDate+' viennin päivämäärä on epäuskottava (ennen vuotta 1990 tai jälkeen 2100). Päivämääräsarake on todennäköisesti väärä.';return}
+    const badAcc=out.filter(l=>l.account===l.voucher||/[,\s]/.test(l.account)||l.account.length>12).length;
+    if(badAcc>out.length*0.5){$('#mapErr').textContent='Tilisarakkeessa on tositenumeroita, summia tai tekstiä. Tarkista Tili-sarakkeen valinta.';return}
+    if(p.period)S.period=p.period;
+    S.files=S.files.filter(f=>f.name!==p.name);S.lines=S.lines.filter(l=>l.file!==p.name);
+    S.lines.push(...out);S.files.push({name:p.name,n:out.length,skipped});S.pending.shift();
+    resetSettings();loadReview();renderAll();toast(out.length+' vientiä luettu tiedostosta '+p.name);
+    if(!S.pending.length)go('findings');
+  }
+});
+function resetSettings(){const old=S.settings;S.settings=inferSettings(defaultSettings());if(old){S.settings.weights=old.weights;S.settings.off=old.off;S.settings.mgmtUsers=old.mgmtUsers;S.settings.keywords=old.keywords;S.settings.approval=old.approval;S.settings.client=S.demo?old.client:old.client}}
+function loadDemo(){
+  S.period=null;const d=makeDemo();S.lines=d.lines;S.docs=d.docs;S.files=[{name:'demo_paivakirja_2025.csv',n:d.lines.length,skipped:0}];S.demo=true;S.review={};S.pending=[];S.randomSeed=null;
+  S.settings=inferSettings(defaultSettings());S.settings.client='Demo Oy';
+  renderAll();
+  if(S.res.flagged.length){S.sel=S.res.flagged[0].id;renderFindings();renderDetail()}
+}
+loadDemo();
+</script>
+</body>
+</html>
